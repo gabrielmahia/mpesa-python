@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "mpesa-python"
+version = "0.1.0"
+description = "Production Python SDK for Safaricom M-Pesa Daraja v3"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Gabriel Mahia", email = "contact@aikungfu.dev"},
+]
+keywords = ["mpesa", "m-pesa", "safaricom", "daraja", "kenya", "fintech", "payments"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Office/Business :: Financial",
+]
+requires-python = ">=3.10"
+dependencies = []  # zero external dependencies — stdlib only
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "pytest-cov", "ruff", "mypy"]
+async = ["aiohttp>=3.9"]
+
+[project.urls]
+Homepage = "https://github.com/gabrielmahia/mpesa-python"
+Documentation = "https://github.com/gabrielmahia/mpesa-python/tree/main/docs"
+"Bug Tracker" = "https://github.com/gabrielmahia/mpesa-python/issues"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--tb=short -q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+ignore_missing_imports = true
