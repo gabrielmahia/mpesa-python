@@ -1,13 +1,13 @@
-# daraja-python
+# daraja-v3
 
-> Formerly `mpesa-python` — renamed to `daraja-python` on PyPI (the original name was taken).
+> Formerly `mpesa-python` — renamed to `daraja-v3` on PyPI (the original name was taken).
 
 **Production Python SDK for Safaricom M-Pesa Daraja v3.**
 
 [![Tests](https://img.shields.io/badge/tests-33%20passing-brightgreen)](https://github.com/gabrielmahia/mpesa-python/actions)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/daraja-python/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/daraja-v3/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![PyPI](https://img.shields.io/badge/pypi-mpesa--python-orange)](https://pypi.org/project/daraja-python/)
+[![PyPI](https://img.shields.io/badge/pypi-mpesa--python-orange)](https://pypi.org/project/daraja-v3/)
 
 Zero external dependencies. Type-annotated. Stripe-quality error handling.
 
@@ -50,7 +50,7 @@ Every Kenya fintech project needs M-Pesa. Most of them roll their own wrapper �
 ## Installation
 
 ```bash
-pip install daraja-python
+pip install daraja-v3
 ```
 
 Or from source:
