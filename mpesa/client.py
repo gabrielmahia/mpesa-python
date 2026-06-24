@@ -156,6 +156,7 @@ class MpesaClient:
         description: str = "Payment",
         callback_url: str = "",
         transaction_type: str = "CustomerPayBillOnline",
+        party_b: str | int | None = None,
     ) -> STKResult:
         """Initiate an STK Push — prompts the customer's phone to enter their PIN.
 
@@ -166,6 +167,12 @@ class MpesaClient:
             description: Description shown to customer on their phone.
             callback_url: URL where Safaricom will POST the result (must be HTTPS in production).
             transaction_type: 'CustomerPayBillOnline' (Paybill) or 'CustomerBuyGoodsOnline' (Till).
+            party_b: The store/till number money should land on. For Paybill (default) this is the
+                same as ``BusinessShortCode`` (the head-office shortcode) — leave ``None`` and it's
+                set automatically. For Buy Goods (``CustomerBuyGoodsOnline``) the merchant's
+                Head-Office shortcode and the actual Till number differ, and passing the Till here
+                is required — Safaricom otherwise rejects async with ResultCode 2002
+                ("Agent number and Store number do not match").
 
         Returns:
             STKResult with checkout_request_id. Use this to poll status.
@@ -182,6 +189,7 @@ class MpesaClient:
         amount_norm = v.amount(amount)
         ref_norm = v.account_reference(reference)
         timestamp = v.passkey_timestamp()
+        party_b_norm = v.shortcode(party_b) if party_b is not None else self._shortcode
 
         data = self._post("/mpesa/stkpush/v1/processrequest", {
             "BusinessShortCode": self._shortcode,
@@ -190,7 +198,7 @@ class MpesaClient:
             "TransactionType": transaction_type,
             "Amount": amount_norm,
             "PartyA": phone_norm,
-            "PartyB": self._shortcode,
+            "PartyB": party_b_norm,
             "PhoneNumber": phone_norm,
             "CallBackURL": callback_url,
             "AccountReference": ref_norm,
