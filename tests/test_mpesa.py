@@ -29,6 +29,16 @@ class TestPhoneValidator:
     def test_strips_dashes(self):
         assert phone("0712-345-678") == "254712345678"
 
+    def test_kenyan_01_format(self):
+        # Safaricom's 0110-0115 block (allocated 2018) — valid M-Pesa subscribers.
+        assert phone("0112345678") == "254112345678"
+
+    def test_kenyan_01_without_leading_zero(self):
+        assert phone("112345678") == "254112345678"
+
+    def test_international_2541_format(self):
+        assert phone("254112345678") == "254112345678"
+
     def test_rejects_short_number(self):
         with pytest.raises(ValidationError) as exc_info:
             phone("0712")
