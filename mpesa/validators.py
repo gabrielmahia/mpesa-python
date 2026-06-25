@@ -8,25 +8,30 @@ import re
 from mpesa.exceptions import ValidationError
 
 
-_PHONE_RE = re.compile(r"^2547\d{8}$")  # 2547XXXXXXXX — 12 digits
+# Accepts both the legacy 2547XXXXXXXX block and Safaricom's newer
+# 2541XXXXXXXX block (0110–0115 local prefixes, allocated to Safaricom
+# in 2018) — both are valid M-Pesa subscribers.
+_PHONE_RE = re.compile(r"^254[71]\d{8}$")  # 254[7|1]XXXXXXXX — 12 digits
 
 
 def phone(value: str, field: str = "phone_number") -> str:
-    """Normalise and validate a Kenyan phone number to 2547XXXXXXXX format.
+    """Normalise and validate a Kenyan phone number to 254[7|1]XXXXXXXX format.
 
-    Accepts: 0712345678, +254712345678, 254712345678, 712345678
-    Returns: 254712345678
+    Accepts: 0712345678, 0112345678, +254712345678, 254712345678, 712345678,
+    112345678 (the 7-block and the 1-block).
+    Returns: 254712345678 / 254112345678.
     """
     cleaned = re.sub(r"[\s\-\(\)]", "", str(value))
     if cleaned.startswith("+"):
         cleaned = cleaned[1:]
-    if cleaned.startswith("07"):
+    if cleaned.startswith(("07", "01")):
         cleaned = "254" + cleaned[1:]
-    if cleaned.startswith("7"):
+    if cleaned.startswith(("7", "1")):
         cleaned = "254" + cleaned
     if not _PHONE_RE.match(cleaned):
         raise ValidationError(
-            f"Invalid {field}: '{value}'. Expected format: 07XXXXXXXX, +2547XXXXXXXX, or 2547XXXXXXXX",
+            f"Invalid {field}: '{value}'. Expected format: 0[7|1]XXXXXXXX, "
+            "+254[7|1]XXXXXXXX, or 254[7|1]XXXXXXXX",
             code="INVALID_PHONE",
         )
     return cleaned
