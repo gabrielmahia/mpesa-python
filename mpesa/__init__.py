@@ -17,7 +17,7 @@ from mpesa.exceptions import (
     TimeoutError as MpesaTimeoutError,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 __all__ = [
     "MpesaClient",
     "MpesaError",
