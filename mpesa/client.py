@@ -30,17 +30,19 @@ Usage:
     )
 """
 from __future__ import annotations
+
 import base64
 import json
-import urllib.request
 import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from mpesa.auth import Auth
-from mpesa.exceptions import MpesaError, TransactionError, TimeoutError as MpesaTimeoutError
 import mpesa.validators as v
+from mpesa.auth import Auth
+from mpesa.exceptions import MpesaError, TransactionError
+from mpesa.exceptions import TimeoutError as MpesaTimeoutError
 
 
 @dataclass
@@ -54,7 +56,7 @@ class STKResult:
     checkout_request_id: str
     response_description: str
     customer_message: str
-    raw: dict
+    raw: dict[str, Any]
 
 
 @dataclass
@@ -63,7 +65,7 @@ class B2CResult:
     conversation_id: str
     originator_conversation_id: str
     response_description: str
-    raw: dict
+    raw: dict[str, Any]
 
 
 @dataclass
@@ -74,7 +76,7 @@ class STKQueryResult:
     merchant_request_id: str
     checkout_request_id: str
     is_paid: bool
-    raw: dict
+    raw: dict[str, Any]
 
 
 class MpesaClient:
@@ -115,19 +117,20 @@ class MpesaClient:
     def _base(self) -> str:
         return self._SANDBOX_BASE if self._sandbox else self._LIVE_BASE
 
-    def _headers(self) -> dict:
+    def _headers(self) -> dict[str, Any]:
         return {
             "Authorization": f"Bearer {self._auth.token()}",
             "Content-Type": "application/json",
         }
 
-    def _post(self, path: str, payload: dict) -> dict:
+    def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         url = f"{self._base}{path}"
         body = json.dumps(payload).encode()
         req = urllib.request.Request(url, data=body, headers=self._headers(), method="POST")
         try:
             with urllib.request.urlopen(req, timeout=self._timeout) as resp:
-                return json.loads(resp.read())
+                parsed: dict[str, Any] = json.loads(resp.read())
+                return parsed
         except urllib.error.HTTPError as e:
             body_text = e.read()[:400].decode("utf-8", "ignore")
             try:
@@ -312,7 +315,7 @@ class MpesaClient:
         validation_url: str,
         confirmation_url: str,
         response_type: str = "Completed",
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Register C2B callback URLs for your shortcode.
 
         Call once (or after URL changes). Daraja stores these against your shortcode.
@@ -338,7 +341,7 @@ class MpesaClient:
         initiator_name: str = "",
         security_credential: str = "",
         identifier_type: str = "4",
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Query account balance for your shortcode.
 
         Result delivered asynchronously to callback_url.
@@ -358,7 +361,7 @@ class MpesaClient:
     # ── Webhook validation ────────────────────────────────────────────────────
 
     @staticmethod
-    def parse_stk_callback(body: dict) -> dict[str, Any]:
+    def parse_stk_callback(body: dict[str, Any]) -> dict[str, Any]:
         """Parse an STK Push webhook body into a flat, usable dict.
 
         Args:

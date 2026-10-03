@@ -5,11 +5,12 @@ This module caches tokens in memory and auto-refreshes 60 seconds before expiry,
 so callers never manage token lifecycle.
 """
 from __future__ import annotations
+
 import base64
-import time
-import urllib.request
-import urllib.error
 import json
+import time
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 
 from mpesa.exceptions import AuthenticationError

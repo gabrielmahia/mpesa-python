@@ -1,4 +1,5 @@
 """M-Pesa SDK exceptions — typed, inspectable, never swallowed."""
+from typing import Any
 
 
 class MpesaError(Exception):
@@ -9,7 +10,7 @@ class MpesaError(Exception):
         code: M-Pesa result code where available (e.g., '1032', '2001').
         raw: Raw API response dict for debugging.
     """
-    def __init__(self, message: str, code: str | None = None, raw: dict | None = None):
+    def __init__(self, message: str, code: str | None = None, raw: dict[str, Any] | None = None):
         super().__init__(message)
         self.message = message
         self.code = code

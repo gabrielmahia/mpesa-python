@@ -8,10 +8,12 @@ Quick start:
 """
 from mpesa.client import MpesaClient
 from mpesa.exceptions import (
-    MpesaError,
     AuthenticationError,
-    ValidationError,
+    MpesaError,
     TransactionError,
+    ValidationError,
+)
+from mpesa.exceptions import (
     TimeoutError as MpesaTimeoutError,
 )
 
