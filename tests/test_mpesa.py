@@ -3,10 +3,10 @@ mpesa-python test suite — unit tests with no network calls required.
 Integration tests (requiring real Daraja sandbox credentials) are in tests/integration/.
 """
 import pytest
-from mpesa.validators import phone, amount, shortcode, account_reference
-from mpesa.exceptions import ValidationError, MpesaError, TransactionError
-from mpesa.client import MpesaClient
 
+from mpesa.client import MpesaClient
+from mpesa.exceptions import MpesaError, TransactionError, ValidationError
+from mpesa.validators import account_reference, amount, phone, shortcode
 
 # ── Phone validation ──────────────────────────────────────────────────────────
 
@@ -30,7 +30,7 @@ class TestPhoneValidator:
         assert phone("0712-345-678") == "254712345678"
 
     def test_kenyan_01_format(self):
-        # Safaricom's 0110-0115 block (allocated 2018) — valid M-Pesa subscribers.
+        # Safaricom's 0110-0115 block (live since 2020) — valid M-Pesa subscribers.
         assert phone("0112345678") == "254112345678"
 
     def test_kenyan_01_without_leading_zero(self):

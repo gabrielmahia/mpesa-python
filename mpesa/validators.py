@@ -4,13 +4,15 @@ All validation raises ValidationError — no network call is made until
 parameters pass local validation. This saves quota and gives faster feedback.
 """
 from __future__ import annotations
+
 import re
+
 from mpesa.exceptions import ValidationError
 
-
-# Accepts both the legacy 2547XXXXXXXX block and Safaricom's newer
-# 2541XXXXXXXX block (0110–0115 local prefixes, allocated to Safaricom
-# in 2018) — both are valid M-Pesa subscribers.
+# Accepts the 2547XXXXXXXX block and the 2541XXXXXXXX block. The 01 prefix was introduced by the
+# Communications Authority in 2019; Safaricom's 0110/0111 went live in February 2020 and 0112-0115 in November 2020.
+# This validates FORMAT only, not operator: the 01 range is shared (Airtel holds 0100-0102), exactly as the 07
+# range always was. Daraja decides whether a given subscriber can be pushed to.
 _PHONE_RE = re.compile(r"^254[71]\d{8}$")  # 254[7|1]XXXXXXXX — 12 digits
 
 
