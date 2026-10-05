@@ -371,6 +371,13 @@ class MpesaClient:
             Dict with keys: paid, result_code, result_desc, phone, amount,
                             mpesa_receipt, transaction_date, merchant_request_id,
                             checkout_request_id, raw.
+
+        Note:
+            ``phone`` is returned exactly as Safaricom sent it, as a string. There is one
+            secondary-source report (not confirmed against Safaricom documentation) that since
+            March 2026 Safaricom masks this field in callbacks, for example ``0722000***``.
+            Do not assume ``phone`` is a dialable number or use it as a lookup key; match a
+            payment by ``checkout_request_id`` or ``mpesa_receipt`` instead.
         """
         try:
             cb = body["Body"]["stkCallback"]
