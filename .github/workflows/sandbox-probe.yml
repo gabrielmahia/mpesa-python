@@ -40,6 +40,7 @@ jobs:
           echo "== canary"; python scripts/sandbox_canary.py --wait 20 || true
           echo "== buy goods check"; python scripts/sandbox_buy_goods_check.py || true
           echo "== b2c v3 vs v1"; python scripts/sandbox_probe.py b2c || true
+          echo "== c2b v2 (the flow that yields a successful callback)"; python scripts/sandbox_probe.py c2b || true
       - name: What Safaricom delivered to the receiver
         if: always()
         run: |

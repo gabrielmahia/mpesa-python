@@ -1,6 +1,7 @@
 """Answers the open Daraja questions that need the live sandbox, and reads what Safaricom delivered to a webhook.site receiver.
 
     python scripts/sandbox_probe.py b2c [--base-url URL]       # does B2C v3 AND v1 exist in the sandbox, and what does each answer?
+    python scripts/sandbox_probe.py c2b [--base-url URL]       # C2B v2 register + simulate: the flow that yields a successful callback (is MSISDN masked?)
     python scripts/sandbox_probe.py callbacks UUID             # what arrived at https://webhook.site/UUID; is PhoneNumber masked?
 
 Secrets come from the environment only and are never printed. The B2C probe needs the sandbox "M-Pesa Sandbox" product; without the initiator
@@ -79,6 +80,38 @@ def b2c(argv: list[str]) -> int:
     return 0
 
 
+C2B_CANDIDATES = ["600000", "600977", "600998", "600984", "600981"]  # sandbox test shortcodes vary by account; the first that accepts registerurl is used
+
+
+def c2b(argv: list[str]) -> int:
+    """C2B v2 simulation is the one sandbox flow that produces a SUCCESSFUL callback, so it can show whether the MSISDN is masked."""
+    base = argv[argv.index("--base-url") + 1].rstrip("/") if "--base-url" in argv else "https://sandbox.safaricom.co.ke"
+    key, secret = os.environ.get("DARAJA_CONSUMER_KEY", ""), os.environ.get("DARAJA_CONSUMER_SECRET", "")
+    if not key or not secret:
+        print("Refusing to run: DARAJA_CONSUMER_KEY / DARAJA_CONSUMER_SECRET are not set.", file=sys.stderr)
+        return 2
+    from mpesa.auth import Auth
+    from mpesa.exceptions import MpesaError
+
+    try:
+        token = Auth(key, secret, sandbox=True, base_url=None if base == "https://sandbox.safaricom.co.ke" else base).token()
+    except MpesaError as exc:
+        print(json.dumps({"probe": "c2b", "result": "FAILED", "step": "oauth", "error": type(exc).__name__}))
+        return 1
+    cb = os.environ.get("DARAJA_CALLBACK_URL", "https://example.com/mpesa/c2b")
+    tried = {}
+    for sc in ([os.environ["DARAJA_C2B_SHORTCODE"]] if os.environ.get("DARAJA_C2B_SHORTCODE") else C2B_CANDIDATES):
+        status, body = _post(f"{base}/mpesa/c2b/v2/registerurl", token, {"ShortCode": sc, "ResponseType": "Completed", "ConfirmationURL": cb, "ValidationURL": cb})
+        tried[sc] = {"registerurl": classify(status, body)}
+        if tried[sc]["registerurl"] != "ACCEPTED":
+            continue
+        status, body = _post(f"{base}/mpesa/c2b/v2/simulate", token, {"ShortCode": sc, "CommandID": "CustomerPayBillOnline", "Amount": 10, "Msisdn": TEST_PHONE, "BillRefNumber": "probe"})
+        tried[sc]["simulate"] = classify(status, body)
+        break
+    print(json.dumps({"probe": "c2b", "result": "REPORTED", "shortcodes_tried": tried, "next": "read the callbacks probe: msisdn_in_callback is FULL or MASKED"}))
+    return 0
+
+
 def callbacks(argv: list[str]) -> int:
     if not argv:
         print("usage: sandbox_probe.py callbacks UUID", file=sys.stderr)
@@ -104,17 +137,24 @@ def callbacks(argv: list[str]) -> int:
             code = str(json.loads(raw)["Body"]["stkCallback"]["ResultCode"])
         except (ValueError, KeyError, TypeError):
             code = "n/a"
-        summary.append({"received": item.get("created_at"), "path": item.get("url", "")[-60:], "stk_result_code": code, "phone_in_callback": phone})
+        msisdn = "ABSENT"
+        try:
+            m = json.loads(raw).get("MSISDN")
+            if m is not None:
+                msisdn = "MASKED" if "*" in str(m) else "FULL"
+        except (ValueError, AttributeError):
+            pass
+        summary.append({"received": item.get("created_at"), "path": item.get("url", "")[-60:], "stk_result_code": code, "phone_in_callback": phone, "msisdn_in_callback": msisdn})
     print(json.dumps({"probe": "callbacks", "count": len(summary), "callbacks": summary[:10]}))
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
-    if not argv or argv[0] not in ("b2c", "callbacks"):
+    if not argv or argv[0] not in ("b2c", "c2b", "callbacks"):
         print(__doc__, file=sys.stderr)
         return 2
-    return (b2c if argv[0] == "b2c" else callbacks)(argv[1:])
+    return {"b2c": b2c, "c2b": c2b, "callbacks": callbacks}[argv[0]](argv[1:])
 
 
 if __name__ == "__main__":

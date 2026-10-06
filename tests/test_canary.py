@@ -58,3 +58,35 @@ def test_the_secret_is_never_printed(mock_url, creds, capsys):
     canary.main(["--base-url", mock_url, "--wait", "0"])
     captured = capsys.readouterr()
     assert "s" * 64 not in captured.out + captured.err and "k" * 48 not in captured.out + captured.err
+
+
+def test_a_transient_status_query_500_is_retried_not_reported_as_broken(creds, capsys, monkeypatch):
+    """The live sandbox's STK query is intermittently 500; the first live canary run reported BROKEN on a single such error."""
+    from mpesa import MpesaClient
+    from mpesa.exceptions import MpesaError
+
+    real, calls = MpesaClient.stk_query, {"n": 0}
+
+    def flaky(self, checkout_request_id):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise MpesaError("API error 500: transient")
+        return real(self, checkout_request_id)
+
+    monkeypatch.setattr(MpesaClient, "stk_query", flaky)
+    url = DarajaMock().run_thread(port=_free_port())
+    assert canary.main(["--base-url", url, "--wait", "0", "--retry-wait", "0"]) == 0
+    assert "attempt 3" in json.loads(capsys.readouterr().out.strip().splitlines()[-1])["stk_query"]
+
+
+def test_a_persistent_status_query_failure_is_still_broken(creds, capsys, monkeypatch):
+    from mpesa import MpesaClient
+    from mpesa.exceptions import MpesaError
+
+    def always(self, checkout_request_id):
+        raise MpesaError("API error 500: down")
+
+    monkeypatch.setattr(MpesaClient, "stk_query", always)
+    url = DarajaMock().run_thread(port=_free_port())
+    assert canary.main(["--base-url", url, "--wait", "0", "--retry-wait", "0"]) == 1
+    assert "FAILED" in json.loads(capsys.readouterr().out.strip().splitlines()[-1])["stk_query"]

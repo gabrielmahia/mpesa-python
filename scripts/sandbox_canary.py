@@ -30,6 +30,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--base-url", default=None, help="point at a local test double such as daraja-mock")
     ap.add_argument("--callback-url", default=os.environ.get("DARAJA_CALLBACK_URL", "https://example.com/mpesa/callback"))
     ap.add_argument("--wait", type=float, default=5.0, help="seconds to wait before the status query")
+    ap.add_argument("--retry-wait", type=float, default=10.0, help="seconds between status-query attempts (the sandbox query is intermittently 500)")
     args = ap.parse_args(argv)
 
     key = os.environ.get("DARAJA_CONSUMER_KEY", "")
@@ -52,13 +53,23 @@ def main(argv: list[str] | None = None) -> int:
         steps["oauth"] = "ok"
         steps["stk_push"] = "ok"
         time.sleep(args.wait)
-        query = client.stk_query(push.checkout_request_id)
-        steps["stk_query"] = f"ok (result_code {query.result_code})"
+        last: Exception | None = None
+        for attempt in range(1, 4):
+            try:
+                query = client.stk_query(push.checkout_request_id)
+                steps["stk_query"] = f"ok (result_code {query.result_code}, attempt {attempt})"
+                break
+            except MpesaError as exc:
+                last = exc
+                if attempt < 3:
+                    time.sleep(args.retry_wait)
+        else:
+            raise last  # type: ignore[misc]
     except AuthenticationError as exc:
         steps["oauth"] = f"FAILED: {type(exc).__name__}"
     except (MpesaError, ValueError) as exc:
         steps["oauth"] = steps.get("oauth", "ok")
-        steps["stk_query" if "stk_push" in steps else "stk_push"] = f"FAILED: {type(exc).__name__}: {str(exc)[:120]}"
+        steps["stk_query" if "stk_push" in steps else "stk_push"] = f"FAILED: {type(exc).__name__}: {' '.join(str(exc).split())[:300]}"
     healthy = steps.get("oauth") == "ok" and steps.get("stk_push") == "ok" and steps.get("stk_query", "").startswith("ok")
     print(json.dumps({"canary": "healthy" if healthy else "BROKEN", **steps}))
     return 0 if healthy else 1

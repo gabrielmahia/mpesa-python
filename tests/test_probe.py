@@ -74,3 +74,54 @@ def test_secrets_are_never_printed(mock_url, env, capsys):
 @pytest.mark.parametrize("status,body,expected", [(200, '{"ResponseCode":"0"}', "ACCEPTED"), (404, "", "ENDPOINT NOT FOUND"), (400, '{"errorMessage":"Bad Request"}', "REJECTED (400: Bad Request)")])
 def test_classification(status, body, expected):
     assert probe.classify(status, body) == expected
+
+
+def _stub_server(responses):
+    """A tiny HTTP stub: daraja-mock has no C2B endpoints, so the C2B probe is tested against this."""
+    import http.server
+    import threading
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def _send(self, status, body):
+            data = json.dumps(body).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_GET(self):  # OAuth
+            self._send(200, {"access_token": "tok", "expires_in": "3599"})
+
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            status, body = responses.get(self.path, (404, {}))
+            self._send(status, body)
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return f"http://127.0.0.1:{srv.server_port}"
+
+
+def test_c2b_uses_the_first_shortcode_that_accepts_registerurl_and_simulates(env, capsys):
+    ok = (200, {"ResponseCode": "0", "ResponseDescription": "Success"})
+    url = _stub_server({"/mpesa/c2b/v2/registerurl": ok, "/mpesa/c2b/v2/simulate": ok})
+    assert probe.main(["c2b", "--base-url", url]) == 0
+    out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    first = next(iter(out["shortcodes_tried"].values()))
+    assert first == {"registerurl": "ACCEPTED", "simulate": "ACCEPTED"} and len(out["shortcodes_tried"]) == 1
+
+
+def test_c2b_moves_on_when_a_shortcode_is_rejected_and_reports_each(env, capsys):
+    url = _stub_server({"/mpesa/c2b/v2/registerurl": (400, {"errorMessage": "Invalid ShortCode"})})
+    assert probe.main(["c2b", "--base-url", url]) == 0
+    out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert len(out["shortcodes_tried"]) == 5 and all("REJECTED" in v["registerurl"] for v in out["shortcodes_tried"].values())
+
+
+def test_c2b_refuses_without_credentials(monkeypatch):
+    monkeypatch.delenv("DARAJA_CONSUMER_KEY", raising=False)
+    assert probe.main(["c2b"]) == 2
