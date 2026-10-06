@@ -3,7 +3,7 @@ name: Sandbox probe
 # Answers the open Daraja questions against the LIVE SANDBOX and prints the results in the job log (no secret is ever printed).
 # Run it by hand: Actions, "Sandbox probe", Run workflow. It needs these repository secrets (Settings, Secrets and variables, Actions):
 #   DARAJA_CONSUMER_KEY, DARAJA_CONSUMER_SECRET          required (an app with "Lipa Na M-Pesa Sandbox")
-#   DARAJA_INITIATOR_NAME, DARAJA_SECURITY_CREDENTIAL,   optional: the B2C v3-vs-v1 probe needs them (app with "M-Pesa Sandbox")
+#   DARAJA_SECURITY_CREDENTIAL (optional DARAJA_INITIATOR_NAME, default testapi): the B2C probe needs the credential (app with "M-Pesa Sandbox")
 #   DARAJA_B2C_SHORTCODE, DARAJA_TILL                    optional: B2C test shortcode; a distinct Buy Goods till for PartyB
 # See docs/SANDBOX_PROBE.md. GitHub does not pass secrets to forks, so this only runs in the owner's repository.
 

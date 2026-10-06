@@ -35,14 +35,24 @@ def test_v3_is_accepted_and_the_missing_v1_is_reported_as_not_found(mock_url, en
     assert out["v3"] == "ACCEPTED" and out["v1"] == "ENDPOINT NOT FOUND"
 
 
-def test_missing_initiator_skips_with_instructions(monkeypatch, capsys):
+def test_missing_security_credential_skips_with_instructions(monkeypatch, capsys):
     monkeypatch.setenv("DARAJA_CONSUMER_KEY", "k" * 48)
     monkeypatch.setenv("DARAJA_CONSUMER_SECRET", "s" * 64)
-    monkeypatch.delenv("DARAJA_INITIATOR_NAME", raising=False)
     monkeypatch.delenv("DARAJA_SECURITY_CREDENTIAL", raising=False)
     assert probe.main(["b2c"]) == 0
     out = json.loads(capsys.readouterr().out)
     assert out["result"] == "SKIPPED" and "M-Pesa Sandbox" in out["reason"]
+
+
+def test_initiator_and_shortcode_default_and_are_reported(mock_url, monkeypatch, capsys):
+    """The portal page may have no initiator or shortcode field: default to the documented sandbox initiator and a placeholder shortcode, and say so."""
+    for k, v in {"DARAJA_CONSUMER_KEY": "k" * 48, "DARAJA_CONSUMER_SECRET": "s" * 64, "DARAJA_SECURITY_CREDENTIAL": "CRED" * 20}.items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.delenv("DARAJA_INITIATOR_NAME", raising=False)
+    monkeypatch.delenv("DARAJA_B2C_SHORTCODE", raising=False)
+    assert probe.main(["b2c", "--base-url", mock_url]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["initiator"] == "testapi" and out["shortcode"] == "600000" and out["v3"] == "ACCEPTED"
 
 
 def test_an_unreachable_host_fails_at_oauth_not_silently(env, capsys):

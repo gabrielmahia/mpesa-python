@@ -54,9 +54,12 @@ def b2c(argv: list[str]) -> int:
         print("Refusing to run: DARAJA_CONSUMER_KEY / DARAJA_CONSUMER_SECRET are not set.", file=sys.stderr)
         return 2
     base = base or "https://sandbox.safaricom.co.ke"
-    initiator, cred = os.environ.get("DARAJA_INITIATOR_NAME", ""), os.environ.get("DARAJA_SECURITY_CREDENTIAL", "")
-    if not initiator or not cred:
-        print(json.dumps({"probe": "b2c", "result": "SKIPPED", "reason": "DARAJA_INITIATOR_NAME / DARAJA_SECURITY_CREDENTIAL not set; add the 'M-Pesa Sandbox' product to a Daraja app and copy them from its Test Credentials page"}))
+    # The portal's Test Credentials page may not show an initiator or shortcode field. Safaricom's documented sandbox initiator is "testapi", and
+    # the question asked here (does the v3 / v1 ENDPOINT exist?) is answered the same whatever the shortcode, so both have defaults and are reported.
+    initiator, cred = os.environ.get("DARAJA_INITIATOR_NAME") or "testapi", os.environ.get("DARAJA_SECURITY_CREDENTIAL", "")
+    shortcode = os.environ.get("DARAJA_B2C_SHORTCODE") or "600000"
+    if not cred:
+        print(json.dumps({"probe": "b2c", "result": "SKIPPED", "reason": "DARAJA_SECURITY_CREDENTIAL not set; add the 'M-Pesa Sandbox' product to a Daraja app and copy the generated credential from its Test Credentials page"}))
         return 0
     from mpesa.auth import Auth
     from mpesa.exceptions import MpesaError
@@ -67,12 +70,12 @@ def b2c(argv: list[str]) -> int:
         print(json.dumps({"probe": "b2c", "result": "FAILED", "step": "oauth", "error": type(exc).__name__}))
         return 1
     cb = os.environ.get("DARAJA_CALLBACK_URL", "https://example.com/mpesa/b2c")
-    common = {"InitiatorName": initiator, "SecurityCredential": cred, "CommandID": "BusinessPayment", "Amount": 10, "PartyA": os.environ.get("DARAJA_B2C_SHORTCODE", "600000"), "PartyB": TEST_PHONE, "Remarks": "probe", "QueueTimeOutURL": cb, "ResultURL": cb}
+    common = {"InitiatorName": initiator, "SecurityCredential": cred, "CommandID": "BusinessPayment", "Amount": 10, "PartyA": shortcode, "PartyB": TEST_PHONE, "Remarks": "probe", "QueueTimeOutURL": cb, "ResultURL": cb}
     out = {}
     for version, extra in (("v3", {"OriginatorConversationID": str(uuid.uuid4()), "Occassion": "probe"}), ("v1", {"Occassion": "probe"})):
         status, body = _post(f"{base}/mpesa/b2c/{version}/paymentrequest", token, {**common, **extra})
         out[version] = classify(status, body)
-    print(json.dumps({"probe": "b2c", "result": "REPORTED", **out}))
+    print(json.dumps({"probe": "b2c", "result": "REPORTED", "initiator": initiator, "shortcode": shortcode, **out}))
     return 0
 
 
