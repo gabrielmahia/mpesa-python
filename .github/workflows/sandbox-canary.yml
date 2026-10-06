@@ -1,0 +1,28 @@
+name: Sandbox canary
+
+# Weekly check that Safaricom's sandbox still behaves the way this SDK expects (OAuth -> STK Push -> STK Query).
+# It needs two repository secrets, DARAJA_CONSUMER_KEY and DARAJA_CONSUMER_SECRET (Settings -> Secrets and variables -> Actions).
+# Without them (every fork, because GitHub does not pass secrets to forks) it skips cleanly and the run stays green.
+
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Live sandbox canary
+        env:
+          DARAJA_CONSUMER_KEY: ${{ secrets.DARAJA_CONSUMER_KEY }}
+          DARAJA_CONSUMER_SECRET: ${{ secrets.DARAJA_CONSUMER_SECRET }}
+        run: python scripts/sandbox_canary.py --skip-if-no-credentials

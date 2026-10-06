@@ -210,3 +210,9 @@ MIT — use freely in commercial and open source projects. Attribution appreciat
 ---
 
 *Built by a Kenyan engineer who has written this wrapper from scratch one too many times.*
+
+## Sandbox setup and testing
+
+- **New to Daraja, or cloned this on a new machine?** [docs/SANDBOX_SETUP.md](docs/SANDBOX_SETUP.md) creates a free sandbox app and runs a verified OAuth / STK Push / status check in a few minutes. Keys cannot be shared, so each developer makes their own.
+- **No account?** `MpesaClient(..., base_url="http://localhost:PORT")` talks to [daraja-mock](https://pypi.org/project/daraja-mock/); the test suite does exactly that.
+- **Is the sandbox still behaving?** `scripts/sandbox_canary.py` checks it and a weekly workflow runs it when you add `DARAJA_CONSUMER_KEY` and `DARAJA_CONSUMER_SECRET` secrets.

@@ -34,6 +34,7 @@ from __future__ import annotations
 import base64
 import json
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from datetime import datetime
@@ -97,6 +98,7 @@ class MpesaClient:
         passkey: str = "",
         sandbox: bool = True,
         timeout: int = 30,
+        base_url: str | None = None,
     ):
         """
         Args:
@@ -106,8 +108,18 @@ class MpesaClient:
             passkey: Lipa Na M-Pesa Online passkey (required for STK Push).
             sandbox: True for test environment, False for production.
             timeout: HTTP request timeout in seconds.
+            base_url: Optional override of the API host, for pointing the client at a local test double such as
+                daraja-mock. Must be https://, or http:// for localhost only; anything else raises ValueError, because
+                this client sends your consumer secret to whatever host it is given.
         """
-        self._auth = Auth(consumer_key, consumer_secret, sandbox)
+        if base_url is not None:
+            parsed = urllib.parse.urlparse(base_url)
+            local = parsed.hostname in ("localhost", "127.0.0.1", "::1")
+            if parsed.scheme not in ("http", "https") or not parsed.hostname or (parsed.scheme == "http" and not local):
+                raise ValueError("base_url must be https://, or http:// only for localhost (a test double such as daraja-mock)")
+            base_url = base_url.rstrip("/")
+        self._base_url = base_url
+        self._auth = Auth(consumer_key, consumer_secret, sandbox, base_url)
         self._shortcode = v.shortcode(shortcode)
         self._passkey = passkey
         self._sandbox = sandbox
@@ -115,6 +127,8 @@ class MpesaClient:
 
     @property
     def _base(self) -> str:
+        if self._base_url:
+            return self._base_url
         return self._SANDBOX_BASE if self._sandbox else self._LIVE_BASE
 
     def _headers(self) -> dict[str, Any]:

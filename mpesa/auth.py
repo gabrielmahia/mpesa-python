@@ -35,14 +35,17 @@ class Auth:
     SANDBOX_URL = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
     LIVE_URL = "https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
 
-    def __init__(self, consumer_key: str, consumer_secret: str, sandbox: bool = True):
+    def __init__(self, consumer_key: str, consumer_secret: str, sandbox: bool = True, base_url: str | None = None):
         self._key = consumer_key
         self._secret = consumer_secret
         self._sandbox = sandbox
+        self._base_url = base_url.rstrip("/") if base_url else None
         self._cache = _TokenCache()
 
     @property
     def _url(self) -> str:
+        if self._base_url:
+            return f"{self._base_url}/oauth/v1/generate?grant_type=client_credentials"
         return self.SANDBOX_URL if self._sandbox else self.LIVE_URL
 
     def token(self) -> str:

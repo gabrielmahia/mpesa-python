@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "daraja-v3"
-version = "0.1.1"
+version = "0.1.2"
 description = "Production Python SDK for Safaricom M-Pesa Daraja v3"
 readme = "README.md"
 license = {text = "MIT"}
@@ -27,7 +27,7 @@ requires-python = ">=3.10"
 dependencies = []  # zero external dependencies — stdlib only
 
 [project.optional-dependencies]
-dev = ["pytest>=7", "pytest-cov", "ruff", "mypy"]
+dev = ["pytest>=7", "pytest-cov", "ruff", "mypy", "daraja-mock>=1.0.4"]
 async = ["aiohttp>=3.9"]
 
 [project.urls]
