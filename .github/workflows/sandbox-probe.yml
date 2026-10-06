@@ -1,0 +1,47 @@
+name: Sandbox probe
+
+# Answers the open Daraja questions against the LIVE SANDBOX and prints the results in the job log (no secret is ever printed).
+# Run it by hand: Actions, "Sandbox probe", Run workflow. It needs these repository secrets (Settings, Secrets and variables, Actions):
+#   DARAJA_CONSUMER_KEY, DARAJA_CONSUMER_SECRET          required (an app with "Lipa Na M-Pesa Sandbox")
+#   DARAJA_INITIATOR_NAME, DARAJA_SECURITY_CREDENTIAL,   optional: the B2C v3-vs-v1 probe needs them (app with "M-Pesa Sandbox")
+#   DARAJA_B2C_SHORTCODE, DARAJA_TILL                    optional: B2C test shortcode; a distinct Buy Goods till for PartyB
+# See docs/SANDBOX_PROBE.md. GitHub does not pass secrets to forks, so this only runs in the owner's repository.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Create a webhook.site receiver for Safaricom's callbacks
+        id: hook
+        run: |
+          uuid=$(curl -fsS -X POST https://webhook.site/token -H 'Content-Type: application/json' -d '{"default_status":200,"default_content":"ok"}' | python -c "import sys,json; print(json.load(sys.stdin)['uuid'])")
+          echo "uuid=$uuid" >> "$GITHUB_OUTPUT"
+      - name: Probes (OAuth, STK Push and Query, Buy Goods, B2C v3 vs v1)
+        env:
+          DARAJA_CONSUMER_KEY: ${{ secrets.DARAJA_CONSUMER_KEY }}
+          DARAJA_CONSUMER_SECRET: ${{ secrets.DARAJA_CONSUMER_SECRET }}
+          DARAJA_INITIATOR_NAME: ${{ secrets.DARAJA_INITIATOR_NAME }}
+          DARAJA_SECURITY_CREDENTIAL: ${{ secrets.DARAJA_SECURITY_CREDENTIAL }}
+          DARAJA_B2C_SHORTCODE: ${{ secrets.DARAJA_B2C_SHORTCODE }}
+          DARAJA_TILL: ${{ secrets.DARAJA_TILL }}
+          DARAJA_CALLBACK_URL: https://webhook.site/${{ steps.hook.outputs.uuid }}
+        run: |
+          echo "== canary"; python scripts/sandbox_canary.py --wait 20 || true
+          echo "== buy goods check"; python scripts/sandbox_buy_goods_check.py || true
+          echo "== b2c v3 vs v1"; python scripts/sandbox_probe.py b2c || true
+      - name: What Safaricom delivered to the receiver
+        if: always()
+        run: |
+          sleep 30
+          python scripts/sandbox_probe.py callbacks "${{ steps.hook.outputs.uuid }}"
