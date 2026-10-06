@@ -60,6 +60,13 @@ result = client.stk_push("0712345678", 10, "REF", "Test", callback_url="https://
 - **STK Push is rejected:** re-check that the shortcode is `174379` and the passkey is the published test value.
 - **No callback arrives:** the callback URL must be public HTTPS. Without `DARAJA_CALLBACK_URL`, `pesa-cli` silently falls back to `https://example.com/mpesa/callback`.
 
-## Known unknowns
-- **UNVERIFIED:** one secondary source reports that since March 2026 Safaricom masks the `PhoneNumber` in STK callbacks (`0722000***`). A failed payment carries no phone field, and the sandbox test phone cannot produce a successful payment, so this could not be tested. `parse_stk_callback` returns the field as a string either way; match payments by `checkout_request_id` or receipt, not by phone.
-- **UNKNOWN:** whether B2C should use the `v3` or `v1` path; sources conflict. This SDK uses `v3`.
+## What the sandbox has actually said (verified 2026-10-06, app with only "Lipa Na M-Pesa Sandbox")
+- **OAuth, STK Push and STK Query work.** The status query is **intermittently `500`** even when the push succeeded; retry it (the canary retries three times).
+- **Callbacks arrive within about 30 seconds** at a public HTTPS URL. Observed `ResultCode 1037` (no response) and `1032` (cancelled), both in the same session, so do not assume one. A failed payment's callback has **no phone field**.
+- **Buy Goods with the standard shortcode `174379`:** `400 Invalid TransactionType`. The sandbox ties the transaction type to the shortcode type, so a real Buy Goods test needs a sandbox till number, which the portal did not give this account.
+- **B2C and C2B v2:** `401 ... no apiproduct match found` on this app. They need the **M-Pesa Sandbox** product, which is a different product from Lipa Na M-Pesa Sandbox. Create a second sandbox app with **both** ticked and use its key and secret.
+- **The Test Credentials page has no shortcode or initiator field** on this account. The probe defaults them (`testapi`, `600000`) because the question it asks (does the endpoint exist and what does it say?) is answered the same either way.
+
+## Still unknown
+- **B2C `v3` or `v1`:** a Safaricom-derived spec says v3 is current. The live answer is blocked on the product above.
+- **UNVERIFIED:** whether the STK callback `PhoneNumber` is masked. One secondary source says so; the sandbox cannot show it (no successful payment). C2B v2 *can* produce a successful callback, so after the product is added the probe's `c2b` step reports `msisdn_in_callback: FULL` or `MASKED`. `parse_stk_callback` returns the field as a string either way; match payments by `checkout_request_id` or receipt, not by phone.

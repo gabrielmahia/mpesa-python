@@ -4,17 +4,19 @@ Three questions need Safaricom's live sandbox. A workflow in this repository ask
 
 | Question | Can the sandbox answer it? |
 |---|---|
-| Buy Goods with a distinct PartyB | Yes, with the app you already have (add `DARAJA_TILL` if the portal shows a Buy Goods till) |
-| B2C `v3` or `v1` | Yes, but the app needs the **M-Pesa Sandbox** product |
-| Is the STK callback `PhoneNumber` masked? | **No.** The sandbox test phone cannot complete a payment, and a failed payment has no phone field. Our code does not depend on it (it matches on the checkout id and receipt number). Only a real production payment can show it |
+| Buy Goods with a distinct PartyB | **Answered 2026-10-06:** with shortcode `174379` the sandbox returns `400 Invalid TransactionType`. A genuine Buy Goods test needs a sandbox till this account does not have |
+| B2C `v3` or `v1` | Yes, once the app has the **M-Pesa Sandbox** product (see below) |
+| Is the callback phone masked? | **STK: no.** A failed payment has no phone field. **C2B v2: yes**, once the product is added: its simulation produces a successful callback |
 
 ## One-time setup
-1. In *Settings, Secrets and variables, Actions, New repository secret* add `DARAJA_CONSUMER_KEY` and `DARAJA_CONSUMER_SECRET` (the copy icons on your app card).
-2. For the B2C question: in the Daraja portal edit or create an app and tick **M-Pesa Sandbox** (as well as Lipa Na M-Pesa Sandbox). On its **Test Credentials** page enter the initiator password and copy: the initiator name (`DARAJA_INITIATOR_NAME`), the generated **Security Credential** (`DARAJA_SECURITY_CREDENTIAL`, already encrypted there) and the B2C shortcode (`DARAJA_B2C_SHORTCODE`).
-3. Run it: *Actions, Sandbox probe, Run workflow*.
+1. Repository secrets (*Settings, Secrets and variables, Actions*): `DARAJA_CONSUMER_KEY` and `DARAJA_CONSUMER_SECRET` (the copy icons on the app card).
+2. **For B2C and C2B:** the app behind those two secrets must have **both** products ticked, *Lipa Na M-Pesa Sandbox* **and** *M-Pesa Sandbox*. An app with only the first gets `401 no apiproduct match found` for both. Create a new sandbox app with both ticked and replace the two secrets with its key and secret.
+3. For B2C also add `DARAJA_SECURITY_CREDENTIAL`: on the app's *Test Credentials* page enter the initiator password and copy the generated credential. `DARAJA_INITIATOR_NAME` (default `testapi`) and `DARAJA_B2C_SHORTCODE` (default `600000`) are optional: that page may have no field for them, and the endpoint question is answered either way.
+4. Run it: *Actions, Sandbox probe, Run workflow*.
 
 Anyone with admin rights on a fork can do the same with their own keys; GitHub does not pass secrets to forks, so nothing leaks.
 
 ## Reading the result
 - `b2c`: `v3`/`v1` each report `ACCEPTED`, `ENDPOINT NOT FOUND` or `REJECTED (...)`. Documentation (an OpenAPI spec generated from the portal, 2026-07-17) says v3 is current and v1/v2 were superseded; this shows what the sandbox actually does.
-- `callbacks`: what arrived at the receiver, with `phone_in_callback` set to `FULL`, `MASKED` or `ABSENT`. In the sandbox expect `ABSENT` with `stk_result_code 1037`.
+- `c2b`: for each candidate test shortcode, whether `registerurl` and `simulate` were `ACCEPTED`.
+- `callbacks`: what arrived at the receiver. `phone_in_callback` (STK) and `msisdn_in_callback` (C2B) are `FULL`, `MASKED` or `ABSENT`. For a failed STK payment expect `ABSENT` with `stk_result_code` 1037 or 1032.
