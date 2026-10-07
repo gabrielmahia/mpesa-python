@@ -110,15 +110,35 @@ def c2b(argv: list[str]) -> int:
     cb = os.environ.get("DARAJA_CALLBACK_URL", "https://example.com/mpesa/c2b")
     tried = {}
     for sc in c2b_shortcodes():
-        status, body = _post(f"{base}/mpesa/c2b/v2/registerurl", token, {"ShortCode": sc, "ResponseType": "Completed", "ConfirmationURL": cb, "ValidationURL": cb})
+        status, body = _post_retry(f"{base}/mpesa/c2b/v2/registerurl", token, {"ShortCode": sc, "ResponseType": "Completed", "ConfirmationURL": cb, "ValidationURL": cb})
         tried[sc] = {"registerurl": classify(status, body)}
         if tried[sc]["registerurl"] != "ACCEPTED":
             continue
-        status, body = _post(f"{base}/mpesa/c2b/v2/simulate", token, {"ShortCode": sc, "CommandID": "CustomerPayBillOnline", "Amount": 10, "Msisdn": TEST_PHONE, "BillRefNumber": "probe"})
+        status, body = _post_retry(f"{base}/mpesa/c2b/v2/simulate", token, {"ShortCode": sc, "CommandID": "CustomerPayBillOnline", "Amount": 10, "Msisdn": TEST_PHONE, "BillRefNumber": "probe"})
         tried[sc]["simulate"] = classify(status, body)
         break
     print(json.dumps({"probe": "c2b", "result": "REPORTED", "shortcodes_tried": tried, "next": "read the callbacks probe: msisdn_in_callback is FULL or MASKED"}))
     return 0
+
+
+def b2c_result(raw: str) -> tuple[str, str] | None:
+    """(ResultCode, ResultDesc) of a B2C/Business result callback, else None. 'ACCEPTED' at the API only means the request was taken; this is the outcome."""
+    try:
+        r = json.loads(raw)["Result"]
+        return str(r["ResultCode"]), str(r.get("ResultDesc", ""))[:100]
+    except (ValueError, KeyError, TypeError):
+        return None
+
+
+def _post_retry(url: str, token: str, payload: dict, tries: int = 4, pause: float = 6.0) -> tuple[int, str]:
+    """_post, retried on Safaricom 5xx ("Service is currently unreachable" is intermittent), with a pause that also keeps the request rate gentle."""
+    status, body = _post(url, token, payload)
+    for _ in range(tries - 1):
+        if status < 500:
+            break
+        time.sleep(pause)
+        status, body = _post(url, token, payload)
+    return status, body
 
 
 def callbacks(argv: list[str]) -> int:
@@ -153,7 +173,11 @@ def callbacks(argv: list[str]) -> int:
                 msisdn = "MASKED" if "*" in str(m) else "FULL"
         except (ValueError, AttributeError):
             pass
-        summary.append({"received": item.get("created_at"), "path": item.get("url", "")[-60:], "stk_result_code": code, "phone_in_callback": phone, "msisdn_in_callback": msisdn})
+        entry = {"received": item.get("created_at"), "path": item.get("url", "")[-60:], "stk_result_code": code, "phone_in_callback": phone, "msisdn_in_callback": msisdn}
+        res = b2c_result(raw)
+        if res:
+            entry.update({"result_code": res[0], "result_desc": res[1]})  # ACCEPTED at the API only means the request was taken; this is the outcome
+        summary.append(entry)
     print(json.dumps({"probe": "callbacks", "count": len(summary), "callbacks": summary[:10]}))
     return 0
 

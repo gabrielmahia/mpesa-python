@@ -178,3 +178,27 @@ def test_c2b_shortcode_precedence(monkeypatch):
     assert probe.c2b_shortcodes() == ["111111"]
     monkeypatch.delenv("DARAJA_B2C_SHORTCODE")
     assert probe.c2b_shortcodes() == probe.C2B_CANDIDATES
+
+
+def test_b2c_result_reports_the_outcome_not_just_the_acceptance():
+    raw = json.dumps({"Result": {"ResultType": 0, "ResultCode": 2001, "ResultDesc": "The initiator information is invalid.", "TransactionID": "X"}})
+    assert probe.b2c_result(raw) == ("2001", "The initiator information is invalid.")
+    assert probe.b2c_result(json.dumps({"TransID": "X"})) is None and probe.b2c_result("nope") is None
+
+
+def test_post_retry_retries_5xx_then_returns_the_first_good_answer(monkeypatch):
+    answers = iter([(500, "down"), (500, "down"), (200, '{"ResponseCode":"0"}')])
+    calls = []
+    monkeypatch.setattr(probe, "_post", lambda *a: (calls.append(1) or next(answers)))
+    monkeypatch.setattr(probe.time, "sleep", lambda s: None)
+    assert probe._post_retry("u", "t", {}) == (200, '{"ResponseCode":"0"}') and len(calls) == 3
+
+
+def test_post_retry_does_not_retry_a_client_error_and_gives_up_after_the_limit(monkeypatch):
+    calls = []
+    monkeypatch.setattr(probe, "_post", lambda *a: (calls.append(1) or (401, "no")))
+    monkeypatch.setattr(probe.time, "sleep", lambda s: None)
+    assert probe._post_retry("u", "t", {}) == (401, "no") and len(calls) == 1
+    calls.clear()
+    monkeypatch.setattr(probe, "_post", lambda *a: (calls.append(1) or (500, "down")))
+    assert probe._post_retry("u", "t", {}, tries=3)[0] == 500 and len(calls) == 3
