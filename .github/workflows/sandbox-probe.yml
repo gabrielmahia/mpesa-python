@@ -117,5 +117,5 @@ jobs:
       - name: What Safaricom delivered to the receiver
         if: always()
         run: |
-          sleep 30
+          sleep 75   # a C2B confirmation can take longer than the others
           python scripts/sandbox_probe.py callbacks "${{ steps.hook.outputs.uuid }}"
