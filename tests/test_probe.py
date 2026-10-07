@@ -166,16 +166,16 @@ def test_c2b_uses_the_b2c_shortcode_secret_when_no_c2b_one_is_set(mock_url, env,
     sent = []
     monkeypatch.setattr(probe, "_post", lambda url, token, payload: (sent.append((url.rsplit("/", 1)[-1], payload.get("ShortCode"))) or (200, '{"ResponseCode":"0"}')))
     assert probe.main(["c2b", "--base-url", mock_url]) == 0
-    assert sent == [("registerurl", "600555"), ("simulate", "600555")]
+    assert sent[:2] == [("registerurl", "600555"), ("simulate", "600555")]
     assert "600555" in json.loads(capsys.readouterr().out)["shortcodes_tried"]
 
 
 def test_c2b_shortcode_precedence(monkeypatch):
     monkeypatch.setenv("DARAJA_B2C_SHORTCODE", "111111")
     monkeypatch.setenv("DARAJA_C2B_SHORTCODE", "222222")
-    assert probe.c2b_shortcodes() == ["222222"]
+    assert probe.c2b_shortcodes()[0] == "222222" and probe.c2b_shortcodes()[1:] == probe.C2B_CANDIDATES
     monkeypatch.delenv("DARAJA_C2B_SHORTCODE")
-    assert probe.c2b_shortcodes() == ["111111"]
+    assert probe.c2b_shortcodes()[0] == "111111"
     monkeypatch.delenv("DARAJA_B2C_SHORTCODE")
     assert probe.c2b_shortcodes() == probe.C2B_CANDIDATES
 
@@ -202,3 +202,19 @@ def test_post_retry_does_not_retry_a_client_error_and_gives_up_after_the_limit(m
     calls.clear()
     monkeypatch.setattr(probe, "_post", lambda *a: (calls.append(1) or (500, "down")))
     assert probe._post_retry("u", "t", {}, tries=3)[0] == 500 and len(calls) == 3
+
+
+def test_c2b_falls_back_to_the_common_shortcodes_when_the_configured_one_is_refused(mock_url, env, monkeypatch, capsys):
+    monkeypatch.delenv("DARAJA_C2B_SHORTCODE", raising=False)
+    monkeypatch.setenv("DARAJA_B2C_SHORTCODE", "600555")
+    monkeypatch.setattr(probe.time, "sleep", lambda s: None)
+    seen = []
+    def fake(url, token, payload):
+        seen.append((url.rsplit("/", 1)[-1], payload.get("ShortCode")))
+        return (200, '{"ResponseCode":"0"}') if payload.get("ShortCode") == probe.C2B_CANDIDATES[1] else (500, "Service is currently unreachable")
+    monkeypatch.setattr(probe, "_post", fake)
+    assert probe.main(["c2b", "--base-url", mock_url]) == 0
+    tried = json.loads(capsys.readouterr().out)["shortcodes_tried"]
+    assert [k for k in tried][-1] == probe.C2B_CANDIDATES[1] and tried[probe.C2B_CANDIDATES[1]]["simulate"] == "ACCEPTED"
+    assert seen.count(("registerurl", "600555")) == 4          # the configured one is retried
+    assert seen.count(("registerurl", probe.C2B_CANDIDATES[0])) == 1  # a guess gets one try

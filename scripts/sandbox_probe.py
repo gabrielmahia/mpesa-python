@@ -85,11 +85,10 @@ C2B_CANDIDATES = ["600000", "600977", "600998", "600984", "600981"]  # sandbox t
 
 
 def c2b_shortcodes() -> list[str]:
-    """DARAJA_C2B_SHORTCODE, else DARAJA_B2C_SHORTCODE (a sandbox account's test shortcode serves both flows), else the guess list."""
-    for name in ("DARAJA_C2B_SHORTCODE", "DARAJA_B2C_SHORTCODE"):
-        if os.environ.get(name, "").strip():
-            return [os.environ[name].strip()]
-    return list(C2B_CANDIDATES)
+    """The configured shortcode first (DARAJA_C2B_SHORTCODE, else DARAJA_B2C_SHORTCODE: a sandbox account's test shortcode often serves both flows),
+    then the common sandbox shortcodes, because Safaricom answers 500 for a shortcode it does not recognise for C2B."""
+    configured = [os.environ[n].strip() for n in ("DARAJA_C2B_SHORTCODE", "DARAJA_B2C_SHORTCODE") if os.environ.get(n, "").strip()][:1]
+    return configured + [c for c in C2B_CANDIDATES if c not in configured]
 
 
 def c2b(argv: list[str]) -> int:
@@ -109,8 +108,8 @@ def c2b(argv: list[str]) -> int:
         return 1
     cb = os.environ.get("DARAJA_CALLBACK_URL", "https://example.com/mpesa/c2b")
     tried = {}
-    for sc in c2b_shortcodes():
-        status, body = _post_retry(f"{base}/mpesa/c2b/v2/registerurl", token, {"ShortCode": sc, "ResponseType": "Completed", "ConfirmationURL": cb, "ValidationURL": cb})
+    for n, sc in enumerate(c2b_shortcodes()):
+        status, body = _post_retry(f"{base}/mpesa/c2b/v2/registerurl", token, {"ShortCode": sc, "ResponseType": "Completed", "ConfirmationURL": cb, "ValidationURL": cb}, tries=4 if n == 0 else 1)
         tried[sc] = {"registerurl": classify(status, body)}
         if tried[sc]["registerurl"] != "ACCEPTED":
             continue
