@@ -212,7 +212,8 @@ def paths(argv: list[str]) -> int:
     # Safaricom's firewall answers a burst from one IP with an HTML 403 for EVERY endpoint, including the ones that work (seen 2026-10-07), so pace the
     # requests and say so if the very first one is already blocked: a result gathered under a block says nothing about products.
     delay = float(argv[argv.index("--delay") + 1]) if "--delay" in argv else 4.0
-    out: dict = {"probe": "paths", "result": "REPORTED", "delay_seconds": delay, "default_ua": {}, "browser_ua": {}}
+    # The last four characters identify WHICH app's key is in the secret (compare with the app card in the portal); too few to help anyone guess the key.
+    out: dict = {"probe": "paths", "result": "REPORTED", "key_ends_with": key[-4:], "key_length": len(key), "delay_seconds": delay, "default_ua": {}, "browser_ua": {}}
     for key, ua in (("default_ua", None), ("browser_ua", BROWSER_UA)):
         for label, path in PATHS:
             out[key][label] = reach(*_post_ua(base + path, token, {}, ua))

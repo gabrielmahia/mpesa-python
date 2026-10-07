@@ -151,3 +151,10 @@ def test_verdict_refuses_to_interpret_a_firewalled_run():
     assert probe.verdict(blocked).startswith("BLOCKED")
     usable = {"stk push (control)": "REACHABLE (400)", "b2c v3": "PRODUCT NOT GRANTED", "b2c v1": "NOT FOUND"}
     assert probe.verdict(usable).startswith("usable") and "stk push (control)=REACHABLE (400)" in probe.verdict(usable)
+
+
+def test_paths_names_the_key_by_its_last_four_characters_only(mock_url, env, capsys):
+    probe.main(["paths", "--base-url", mock_url, "--delay", "0"])
+    c = capsys.readouterr()
+    out = json.loads(c.out)
+    assert out["key_ends_with"] == "kkkk" and out["key_length"] == 48 and ("k" * 5) not in c.out and ("s" * 64) not in c.out + c.err
