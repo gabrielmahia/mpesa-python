@@ -60,13 +60,16 @@ result = client.stk_push("0712345678", 10, "REF", "Test", callback_url="https://
 - **STK Push is rejected:** re-check that the shortcode is `174379` and the passkey is the published test value.
 - **No callback arrives:** the callback URL must be public HTTPS. Without `DARAJA_CALLBACK_URL`, `pesa-cli` silently falls back to `https://example.com/mpesa/callback`.
 
-## What the sandbox has actually said (verified 2026-10-06, app with only "Lipa Na M-Pesa Sandbox")
-- **OAuth, STK Push and STK Query work.** The status query is **intermittently `500`** even when the push succeeded; retry it (the canary retries three times).
-- **Callbacks arrive within about 30 seconds** at a public HTTPS URL. Observed `ResultCode 1037` (no response) and `1032` (cancelled), both in the same session, so do not assume one. A failed payment's callback has **no phone field**.
-- **Buy Goods with the standard shortcode `174379`:** `400 Invalid TransactionType`. The sandbox ties the transaction type to the shortcode type, so a real Buy Goods test needs a sandbox till number, which the portal did not give this account.
-- **B2C and C2B v2:** `401 ... no apiproduct match found` on this app. They need the **M-Pesa Sandbox** product, which is a different product from Lipa Na M-Pesa Sandbox. Create a second sandbox app with **both** ticked and use its key and secret.
-- **The Test Credentials page has no shortcode or initiator field** on this account. The probe defaults them (`testapi`, `600000`) because the question it asks (does the endpoint exist and what does it say?) is answered the same either way.
+## What the sandbox actually did (checked 2026-10-06 and 2026-10-07 with the "Sandbox probe" and "Sandbox paths" workflows)
+- **C2B v2 masks the customer's phone number.** With a registered URL, a simulated payment's confirmation callback carried `"MSISDN": "2547 ***** 149"` (first four digits, five asterisks, last three). Match C2B payments on `TransID` or `BillRefNumber`, never on the phone. (Checked 2026-10-07 with shortcode `600000`.)
+- **B2C `v3` and `v1` both exist and accept requests** (HTTP 200 "accepted"). That is not success: the result callback said `ResultCode 2001 "The initiator information is invalid"` until the initiator name and security credential match the app. `v2` returns 404.
+- **Buy Goods is rejected on the sandbox paybill shortcode** (`400 Invalid TransactionType` for `CustomerBuyGoodsOnline`). The paybill control is accepted. Buy Goods can only be exercised with a real till at go-live.
+- **A failed STK payment's callback has no phone field** (`ResultCode` 1032 or 1037).
+- **Products must be on the app whose key you use.** An app with only Lipa Na M-Pesa Sandbox gets `401 no apiproduct match found` on B2C and C2B; a new app with both products ticked at creation reached every endpoint (the "Sandbox paths" workflow shows `REACHABLE` for each).
+- **Safaricom's firewall blocks a burst from one IP** with an HTML 403 on every endpoint, including working ones, and the sandbox returns intermittent `500 Service is currently unreachable`. Pace requests, retry 5xx, and distrust any run in which the STK controls fail.
+- **C2B register answers `HTTP 200 "Success"`** (no `ResponseCode`); a shortcode that is already registered answers `500 Duplicate notification info`; a shortcode the sandbox does not recognise for C2B can answer `500 Service is currently unreachable`.
 
 ## Still unknown
-- **B2C `v3` or `v1`:** a Safaricom-derived spec says v3 is current. The live answer is blocked on the product above.
-- **UNVERIFIED:** whether the STK callback `PhoneNumber` is masked. One secondary source says so; the sandbox cannot show it (no successful payment). C2B v2 *can* produce a successful callback, so after the product is added the probe's `c2b` step reports `msisdn_in_callback: FULL` or `MASKED`. `parse_stk_callback` returns the field as a string either way; match payments by `checkout_request_id` or receipt, not by phone.
+- **Whether STK callbacks mask the phone number on a successful payment.** The sandbox test phone cannot complete a payment, so this cannot be observed here. One secondary source says they do, and C2B v2 does (above). `parse_stk_callback` returns the field as a string either way; match by `checkout_request_id` or receipt, not by phone.
+- **Whether B2C `v1` still works in production** (it accepts requests in the sandbox). The Safaricom-derived spec says `v3` is current; this SDK uses `v3`.
+- **Whether a B2C payment succeeds in the sandbox** once the initiator name and security credential match (not yet seen; needs the initiator name and credential from the app's Test Credentials page).
