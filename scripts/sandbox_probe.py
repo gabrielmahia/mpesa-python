@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -173,6 +174,14 @@ def reach(status: int, body: str) -> str:
     return f"REACHABLE ({status})"
 
 
+def verdict(results: dict) -> str:
+    """BLOCKED when most answers are edge blocks (the run measured the firewall, not the products); otherwise what the controls say."""
+    blocked = sum(1 for v in results.values() if v.startswith("EDGE BLOCK"))
+    if blocked * 2 > len(results):
+        return f"BLOCKED: {blocked} of {len(results)} answers were firewall pages, so this run says nothing about products; retry later or from another network"
+    return "usable: " + ", ".join(f"{k}={v}" for k, v in results.items() if "control" in k)
+
+
 def _post_ua(url: str, token: str, payload: dict, ua: str | None) -> tuple[int, str]:
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     if ua:
@@ -200,10 +209,15 @@ def paths(argv: list[str]) -> int:
     except MpesaError as exc:
         print(json.dumps({"probe": "paths", "result": "FAILED", "step": "oauth", "error": type(exc).__name__}))
         return 1
-    out: dict = {"probe": "paths", "result": "REPORTED", "default_ua": {}, "browser_ua": {}}
-    for label, path in PATHS:
-        for key, ua in (("default_ua", None), ("browser_ua", BROWSER_UA)):
+    # Safaricom's firewall answers a burst from one IP with an HTML 403 for EVERY endpoint, including the ones that work (seen 2026-10-07), so pace the
+    # requests and say so if the very first one is already blocked: a result gathered under a block says nothing about products.
+    delay = float(argv[argv.index("--delay") + 1]) if "--delay" in argv else 4.0
+    out: dict = {"probe": "paths", "result": "REPORTED", "delay_seconds": delay, "default_ua": {}, "browser_ua": {}}
+    for key, ua in (("default_ua", None), ("browser_ua", BROWSER_UA)):
+        for label, path in PATHS:
             out[key][label] = reach(*_post_ua(base + path, token, {}, ua))
+            time.sleep(delay)
+    out["verdict"] = verdict(out["default_ua"])
     print(json.dumps(out))
     return 0
 

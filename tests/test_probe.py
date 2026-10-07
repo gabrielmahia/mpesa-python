@@ -140,7 +140,14 @@ def test_reach_says_where_a_request_stopped(status, body, expected):
 
 
 def test_paths_reports_both_user_agents_and_executes_nothing(mock_url, env, capsys):
-    assert probe.main(["paths", "--base-url", mock_url]) == 0
+    assert probe.main(["paths", "--base-url", mock_url, "--delay", "0"]) == 0
     out = json.loads(capsys.readouterr().out)
     assert set(out["default_ua"]) == {label for label, _ in probe.PATHS} == set(out["browser_ua"])
     assert out["default_ua"]["b2c v1"] == "NOT FOUND"  # the mock implements v3 only
+
+
+def test_verdict_refuses_to_interpret_a_firewalled_run():
+    blocked = {"stk push (control)": "EDGE BLOCK (403, HTML page)", "b2c v3": "EDGE BLOCK (403, HTML page)", "b2c v1": "NOT FOUND"}
+    assert probe.verdict(blocked).startswith("BLOCKED")
+    usable = {"stk push (control)": "REACHABLE (400)", "b2c v3": "PRODUCT NOT GRANTED", "b2c v1": "NOT FOUND"}
+    assert probe.verdict(usable).startswith("usable") and "stk push (control)=REACHABLE (400)" in probe.verdict(usable)

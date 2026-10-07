@@ -1,0 +1,25 @@
+name: Sandbox paths
+
+# Maps where each Daraja endpoint stops (reachable, product-gated, edge-blocked, missing) from a FRESH job with paced requests, because Safaricom's firewall
+# blocks every endpoint after a burst from one IP (which is why this is not a step of "Sandbox probe"). Uses the same repository secrets.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  paths:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Map the endpoints (about two minutes)
+        env:
+          DARAJA_CONSUMER_KEY: ${{ secrets.DARAJA_CONSUMER_KEY }}
+          DARAJA_CONSUMER_SECRET: ${{ secrets.DARAJA_CONSUMER_SECRET }}
+        run: python scripts/sandbox_probe.py paths --delay 4
