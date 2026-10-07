@@ -41,7 +41,9 @@ def classify(status: int, body: str) -> str:
         j = {}
     if status == 404:
         return "ENDPOINT NOT FOUND"
-    if status == 200 and str(j.get("ResponseCode", "")) == "0":
+    # STK and B2C answer ResponseCode "0"; C2B v2 registerurl answers HTTP 200 with a Success description (seen 2026-10-07 on a new account), so accept both.
+    desc = str(j.get("ResponseDescription") or j.get("responseMessage") or "")
+    if status == 200 and (str(j.get("ResponseCode", "")) in ("0", "00000000") or desc.strip().lower() == "success"):
         return "ACCEPTED"
     msg = j.get("errorMessage") or j.get("ResponseDescription") or body[:120]
     return f"REJECTED ({status}: {str(msg)[:100]})"

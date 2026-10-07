@@ -218,3 +218,14 @@ def test_c2b_falls_back_to_the_common_shortcodes_when_the_configured_one_is_refu
     assert [k for k in tried][-1] == probe.C2B_CANDIDATES[1] and tried[probe.C2B_CANDIDATES[1]]["simulate"] == "ACCEPTED"
     assert seen.count(("registerurl", "600555")) == 4          # the configured one is retried
     assert seen.count(("registerurl", probe.C2B_CANDIDATES[0])) == 1  # a guess gets one try
+
+
+@pytest.mark.parametrize("status,body,expected", [
+    (200, '{"ResponseCode":"0","ResponseDescription":"Accept the service request successfully."}', "ACCEPTED"),
+    (200, '{"ResponseDescription":"Success"}', "ACCEPTED"),                      # C2B v2 registerurl on a new account
+    (200, '{"ResponseCode":"00000000","ResponseDescription":"success"}', "ACCEPTED"),
+    (200, '{"ResponseCode":"1","ResponseDescription":"Failed"}', "REJECTED (200: Failed)"),
+    (500, '{"errorMessage":"Duplicate notification info, SP ID is 107078, correlator is 600998"}', "REJECTED (500: Duplicate notification info, SP ID is 107078, correlator is 600998)"),
+])
+def test_classify_knows_the_c2b_success_shape_and_still_rejects_failures(status, body, expected):
+    assert probe.classify(status, body) == expected
