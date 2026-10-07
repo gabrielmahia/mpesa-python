@@ -25,6 +25,11 @@ import uuid
 TEST_PHONE = "254708374149"
 
 
+def test_phone() -> str:
+    """The sandbox test MSISDN: DARAJA_PHONE_NUMBER (from the app's Test Credentials page), else Safaricom's published one."""
+    return os.environ.get("DARAJA_PHONE_NUMBER", "").strip() or TEST_PHONE
+
+
 def _post(url: str, token: str, payload: dict) -> tuple[int, str]:
     req = urllib.request.Request(url, data=json.dumps(payload).encode(), method="POST", headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
     try:
@@ -61,7 +66,7 @@ def b2c(argv: list[str]) -> int:
     # The portal's Test Credentials page may not show an initiator or shortcode field. Safaricom's documented sandbox initiator is "testapi", and
     # the question asked here (does the v3 / v1 ENDPOINT exist?) is answered the same whatever the shortcode, so both have defaults and are reported.
     initiator, cred = os.environ.get("DARAJA_INITIATOR_NAME") or "testapi", os.environ.get("DARAJA_SECURITY_CREDENTIAL", "")
-    shortcode = os.environ.get("DARAJA_B2C_SHORTCODE") or "600000"
+    shortcode = os.environ.get("DARAJA_PARTY_A") or os.environ.get("DARAJA_B2C_SHORTCODE") or "600000"
     if not cred:
         print(json.dumps({"probe": "b2c", "result": "SKIPPED", "reason": "DARAJA_SECURITY_CREDENTIAL not set; add the 'M-Pesa Sandbox' product to a Daraja app and copy the generated credential from its Test Credentials page"}))
         return 0
@@ -74,7 +79,7 @@ def b2c(argv: list[str]) -> int:
         print(json.dumps({"probe": "b2c", "result": "FAILED", "step": "oauth", "error": type(exc).__name__}))
         return 1
     cb = os.environ.get("DARAJA_CALLBACK_URL", "https://example.com/mpesa/b2c")
-    common = {"InitiatorName": initiator, "SecurityCredential": cred, "CommandID": "BusinessPayment", "Amount": 10, "PartyA": shortcode, "PartyB": TEST_PHONE, "Remarks": "probe", "QueueTimeOutURL": cb, "ResultURL": cb}
+    common = {"InitiatorName": initiator, "SecurityCredential": cred, "CommandID": "BusinessPayment", "Amount": 10, "PartyA": shortcode, "PartyB": test_phone(), "Remarks": "probe", "QueueTimeOutURL": cb, "ResultURL": cb}
     out = {}
     for version, extra in (("v3", {"OriginatorConversationID": str(uuid.uuid4()), "Occassion": "probe"}), ("v1", {"Occassion": "probe"})):
         status, body = _post(f"{base}/mpesa/b2c/{version}/paymentrequest", token, {**common, **extra})
@@ -86,10 +91,37 @@ def b2c(argv: list[str]) -> int:
 C2B_CANDIDATES = ["600000", "600977", "600998", "600984", "600981"]  # sandbox test shortcodes vary by account; the first that accepts registerurl is used
 
 
+def balance(argv: list[str]) -> int:
+    """Account Balance: moves no money. Its async result is the cleanest test that the initiator and security credential are valid
+    (ResultCode 0 with balances, or 2001 'initiator information is invalid'); read it with the callbacks probe."""
+    cred = os.environ.get("DARAJA_SECURITY_CREDENTIAL", "")
+    if not os.environ.get("DARAJA_CONSUMER_KEY") or not os.environ.get("DARAJA_CONSUMER_SECRET"):
+        print("Refusing to run: DARAJA_CONSUMER_KEY / DARAJA_CONSUMER_SECRET are not set.", file=sys.stderr)
+        return 2
+    if not cred:
+        print(json.dumps({"probe": "balance", "result": "SKIPPED", "reason": "DARAJA_SECURITY_CREDENTIAL not set"}))
+        return 0
+    base = argv[argv.index("--base-url") + 1].rstrip("/") if "--base-url" in argv else "https://sandbox.safaricom.co.ke"
+    from mpesa.auth import Auth
+    from mpesa.exceptions import MpesaError
+
+    try:
+        token = Auth(os.environ["DARAJA_CONSUMER_KEY"], os.environ["DARAJA_CONSUMER_SECRET"], sandbox=True, base_url=None if base == "https://sandbox.safaricom.co.ke" else base).token()
+    except MpesaError as exc:
+        print(json.dumps({"probe": "balance", "result": "FAILED", "step": "oauth", "error": type(exc).__name__}))
+        return 1
+    cb = os.environ.get("DARAJA_CALLBACK_URL", "https://example.com/mpesa/balance")
+    initiator = os.environ.get("DARAJA_INITIATOR_NAME") or "testapi"
+    party = os.environ.get("DARAJA_PARTY_A") or os.environ.get("DARAJA_B2C_SHORTCODE") or "600000"
+    status, body = _post_retry(f"{base}/mpesa/accountbalance/v1/query", token, {"Initiator": initiator, "SecurityCredential": cred, "CommandID": "AccountBalance", "PartyA": party, "IdentifierType": "4", "Remarks": "probe", "QueueTimeOutURL": cb, "ResultURL": cb})
+    print(json.dumps({"probe": "balance", "result": "REPORTED", "request": classify(status, body), "next": "the callbacks summary shows result_code 0 (valid initiator) or 2001 (invalid)"}))
+    return 0
+
+
 def c2b_shortcodes() -> list[str]:
     """The configured shortcode first (DARAJA_C2B_SHORTCODE, else DARAJA_B2C_SHORTCODE: a sandbox account's test shortcode often serves both flows),
     then the common sandbox shortcodes, because Safaricom answers 500 for a shortcode it does not recognise for C2B."""
-    configured = [os.environ[n].strip() for n in ("DARAJA_C2B_SHORTCODE", "DARAJA_B2C_SHORTCODE") if os.environ.get(n, "").strip()][:1]
+    configured = [os.environ[n].strip() for n in ("DARAJA_C2B_SHORTCODE", "DARAJA_PARTY_A", "DARAJA_B2C_SHORTCODE") if os.environ.get(n, "").strip()][:1]
     return configured + [c for c in C2B_CANDIDATES if c not in configured]
 
 
@@ -115,7 +147,7 @@ def c2b(argv: list[str]) -> int:
         tried[sc] = {"registerurl": classify(status, body)}
         if tried[sc]["registerurl"] != "ACCEPTED":
             continue
-        status, body = _post_retry(f"{base}/mpesa/c2b/v2/simulate", token, {"ShortCode": sc, "CommandID": "CustomerPayBillOnline", "Amount": 10, "Msisdn": TEST_PHONE, "BillRefNumber": "probe"})
+        status, body = _post_retry(f"{base}/mpesa/c2b/v2/simulate", token, {"ShortCode": sc, "CommandID": "CustomerPayBillOnline", "Amount": 10, "Msisdn": test_phone(), "BillRefNumber": "probe"})
         tried[sc]["simulate"] = classify(status, body)
         break
     print(json.dumps({"probe": "c2b", "result": "REPORTED", "shortcodes_tried": tried, "next": "read the callbacks probe: msisdn_in_callback is FULL or MASKED"}))
@@ -258,10 +290,10 @@ def paths(argv: list[str]) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
-    if not argv or argv[0] not in ("b2c", "c2b", "callbacks", "paths"):
+    if not argv or argv[0] not in ("b2c", "c2b", "balance", "callbacks", "paths"):
         print(__doc__, file=sys.stderr)
         return 2
-    return {"b2c": b2c, "c2b": c2b, "callbacks": callbacks, "paths": paths}[argv[0]](argv[1:])
+    return {"b2c": b2c, "c2b": c2b, "balance": balance, "callbacks": callbacks, "paths": paths}[argv[0]](argv[1:])
 
 
 if __name__ == "__main__":

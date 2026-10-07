@@ -229,3 +229,31 @@ def test_c2b_falls_back_to_the_common_shortcodes_when_the_configured_one_is_refu
 ])
 def test_classify_knows_the_c2b_success_shape_and_still_rejects_failures(status, body, expected):
     assert probe.classify(status, body) == expected
+
+
+def test_party_a_and_the_test_phone_come_from_the_new_secrets(mock_url, env, monkeypatch, capsys):
+    monkeypatch.setenv("DARAJA_PARTY_A", "600111")
+    monkeypatch.setenv("DARAJA_PHONE_NUMBER", "254700000001")
+    monkeypatch.delenv("DARAJA_B2C_SHORTCODE", raising=False)
+    mock = DarajaMock()
+    url = mock.run_thread(port=_free_port())
+    assert probe.main(["b2c", "--base-url", url]) == 0
+    sent = [e["body"] for e in mock.request_log() if e["path"].endswith("/b2c/v3/paymentrequest")][-1]
+    assert sent["PartyA"] == "600111" and sent["PartyB"] == "254700000001"
+    assert probe.c2b_shortcodes()[0] == "600111" and probe.test_phone() == "254700000001"
+
+
+def test_balance_sends_an_account_balance_query_and_skips_without_a_credential(monkeypatch, capsys):
+    monkeypatch.setenv("DARAJA_CONSUMER_KEY", "k" * 48)
+    monkeypatch.setenv("DARAJA_CONSUMER_SECRET", "s" * 64)
+    monkeypatch.delenv("DARAJA_SECURITY_CREDENTIAL", raising=False)
+    assert probe.main(["balance"]) == 0 and json.loads(capsys.readouterr().out)["result"] == "SKIPPED"
+    monkeypatch.setenv("DARAJA_SECURITY_CREDENTIAL", "CRED" * 20)
+    monkeypatch.setenv("DARAJA_PARTY_A", "600222")
+    sent = []
+    monkeypatch.setattr(probe, "_post_retry", lambda url, token, payload, **k: (sent.append((url.split("/")[-3], payload)) or (200, '{"ResponseCode":"0"}')))
+    mock = DarajaMock()
+    url = mock.run_thread(port=_free_port())
+    assert probe.main(["balance", "--base-url", url]) == 0
+    assert sent[0][0] == "accountbalance" and sent[0][1]["PartyA"] == "600222" and sent[0][1]["CommandID"] == "AccountBalance" and sent[0][1]["IdentifierType"] == "4"
+    assert "CRED" * 20 not in capsys.readouterr().out

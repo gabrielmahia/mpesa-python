@@ -38,6 +38,9 @@ jobs:
           DARAJA_SECURITY_CREDENTIAL: ${{ secrets.DARAJA_SECURITY_CREDENTIAL }}
           DARAJA_B2C_SHORTCODE: ${{ secrets.DARAJA_B2C_SHORTCODE }}
           DARAJA_TILL: ${{ secrets.DARAJA_TILL }}
+          DARAJA_PARTY_A: ${{ secrets.DARAJA_PARTY_A }}
+          DARAJA_PARTY_B: ${{ secrets.DARAJA_PARTY_B }}
+          DARAJA_PHONE_NUMBER: ${{ secrets.DARAJA_PHONE_NUMBER }}
           DARAJA_CALLBACK_URL: https://webhook.site/${{ steps.hook.outputs.uuid }}
         run: |
           echo "== canary"; python scripts/sandbox_canary.py --wait 20 || true
@@ -70,9 +73,13 @@ jobs:
           DARAJA_SECURITY_CREDENTIAL: ${{ secrets.DARAJA_SECURITY_CREDENTIAL }}
           DARAJA_B2C_SHORTCODE: ${{ secrets.DARAJA_B2C_SHORTCODE }}
           DARAJA_TILL: ${{ secrets.DARAJA_TILL }}
+          DARAJA_PARTY_A: ${{ secrets.DARAJA_PARTY_A }}
+          DARAJA_PARTY_B: ${{ secrets.DARAJA_PARTY_B }}
+          DARAJA_PHONE_NUMBER: ${{ secrets.DARAJA_PHONE_NUMBER }}
           DARAJA_CALLBACK_URL: https://webhook.site/${{ steps.hook.outputs.uuid }}
         run: |
           echo "== b2c v3 vs v1"; python scripts/sandbox_probe.py b2c || true
+          echo "== account balance (the cleanest test that the initiator and credential are valid)"; python scripts/sandbox_probe.py balance || true
       - name: What Safaricom delivered to the receiver
         if: always()
         run: |
@@ -101,6 +108,9 @@ jobs:
           DARAJA_SECURITY_CREDENTIAL: ${{ secrets.DARAJA_SECURITY_CREDENTIAL }}
           DARAJA_B2C_SHORTCODE: ${{ secrets.DARAJA_B2C_SHORTCODE }}
           DARAJA_TILL: ${{ secrets.DARAJA_TILL }}
+          DARAJA_PARTY_A: ${{ secrets.DARAJA_PARTY_A }}
+          DARAJA_PARTY_B: ${{ secrets.DARAJA_PARTY_B }}
+          DARAJA_PHONE_NUMBER: ${{ secrets.DARAJA_PHONE_NUMBER }}
           DARAJA_CALLBACK_URL: https://webhook.site/${{ steps.hook.outputs.uuid }}
         run: |
           echo "== c2b v2 register and simulate"; python scripts/sandbox_probe.py c2b || true
