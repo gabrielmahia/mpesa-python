@@ -84,6 +84,14 @@ def b2c(argv: list[str]) -> int:
 C2B_CANDIDATES = ["600000", "600977", "600998", "600984", "600981"]  # sandbox test shortcodes vary by account; the first that accepts registerurl is used
 
 
+def c2b_shortcodes() -> list[str]:
+    """DARAJA_C2B_SHORTCODE, else DARAJA_B2C_SHORTCODE (a sandbox account's test shortcode serves both flows), else the guess list."""
+    for name in ("DARAJA_C2B_SHORTCODE", "DARAJA_B2C_SHORTCODE"):
+        if os.environ.get(name, "").strip():
+            return [os.environ[name].strip()]
+    return list(C2B_CANDIDATES)
+
+
 def c2b(argv: list[str]) -> int:
     """C2B v2 simulation is the one sandbox flow that produces a SUCCESSFUL callback, so it can show whether the MSISDN is masked."""
     base = argv[argv.index("--base-url") + 1].rstrip("/") if "--base-url" in argv else "https://sandbox.safaricom.co.ke"
@@ -101,7 +109,7 @@ def c2b(argv: list[str]) -> int:
         return 1
     cb = os.environ.get("DARAJA_CALLBACK_URL", "https://example.com/mpesa/c2b")
     tried = {}
-    for sc in ([os.environ["DARAJA_C2B_SHORTCODE"]] if os.environ.get("DARAJA_C2B_SHORTCODE") else C2B_CANDIDATES):
+    for sc in c2b_shortcodes():
         status, body = _post(f"{base}/mpesa/c2b/v2/registerurl", token, {"ShortCode": sc, "ResponseType": "Completed", "ConfirmationURL": cb, "ValidationURL": cb})
         tried[sc] = {"registerurl": classify(status, body)}
         if tried[sc]["registerurl"] != "ACCEPTED":

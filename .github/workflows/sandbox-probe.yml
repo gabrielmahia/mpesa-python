@@ -1,10 +1,12 @@
 name: Sandbox probe
 
-# Answers the open Daraja questions against the LIVE SANDBOX and prints the results in the job log (no secret is ever printed).
-# Run it by hand: Actions, "Sandbox probe", Run workflow. It needs these repository secrets (Settings, Secrets and variables, Actions):
-#   DARAJA_CONSUMER_KEY, DARAJA_CONSUMER_SECRET          required (an app with "Lipa Na M-Pesa Sandbox")
-#   DARAJA_SECURITY_CREDENTIAL (optional DARAJA_INITIATOR_NAME, default testapi): the B2C probe needs the credential (app with "M-Pesa Sandbox")
-#   DARAJA_B2C_SHORTCODE, DARAJA_TILL                    optional: B2C test shortcode; a distinct Buy Goods till for PartyB
+# Answers the open Daraja questions against the LIVE SANDBOX and prints the results in each job's log (no secret is ever printed).
+# Three jobs on three fresh runners, because Safaricom's firewall blocks a burst of requests from one IP (every endpoint returns an HTML 403): a probe that
+# runs after a dozen other requests measures the firewall, not the API. Before interpreting anything, check the "Sandbox paths" workflow's verdict is "usable".
+# Run it by hand: Actions, "Sandbox probe", Run workflow. Repository secrets (Settings, Secrets and variables, Actions):
+#   DARAJA_CONSUMER_KEY, DARAJA_CONSUMER_SECRET         required (an app with BOTH "Lipa Na M-Pesa Sandbox" and "M-Pesa Sandbox", chosen at creation)
+#   DARAJA_SECURITY_CREDENTIAL, DARAJA_B2C_SHORTCODE    from the app's Test Credentials page; the shortcode is also used for C2B
+#   DARAJA_INITIATOR_NAME, DARAJA_TILL                  optional (initiator defaults to the published "testapi")
 # See docs/SANDBOX_PROBE.md. GitHub does not pass secrets to forks, so this only runs in the owner's repository.
 
 on:
@@ -14,7 +16,8 @@ permissions:
   contents: read
 
 jobs:
-  probe:
+  stk:
+    name: STK and Buy Goods
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +30,7 @@ jobs:
         run: |
           uuid=$(curl -fsS -X POST https://webhook.site/token -H 'Content-Type: application/json' -d '{"default_status":200,"default_content":"ok"}' | python -c "import sys,json; print(json.load(sys.stdin)['uuid'])")
           echo "uuid=$uuid" >> "$GITHUB_OUTPUT"
-      - name: Probes (OAuth, STK Push and Query, Buy Goods, B2C v3 vs v1)
+      - name: STK and Buy Goods
         env:
           DARAJA_CONSUMER_KEY: ${{ secrets.DARAJA_CONSUMER_KEY }}
           DARAJA_CONSUMER_SECRET: ${{ secrets.DARAJA_CONSUMER_SECRET }}
@@ -39,9 +42,68 @@ jobs:
         run: |
           echo "== canary"; python scripts/sandbox_canary.py --wait 20 || true
           echo "== buy goods check"; python scripts/sandbox_buy_goods_check.py || true
+      - name: What Safaricom delivered to the receiver
+        if: always()
+        run: |
+          sleep 30
+          python scripts/sandbox_probe.py callbacks "${{ steps.hook.outputs.uuid }}"
+
+  b2c:
+    name: B2C v3 vs v1
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Create a webhook.site receiver for Safaricom's callbacks
+        id: hook
+        run: |
+          uuid=$(curl -fsS -X POST https://webhook.site/token -H 'Content-Type: application/json' -d '{"default_status":200,"default_content":"ok"}' | python -c "import sys,json; print(json.load(sys.stdin)['uuid'])")
+          echo "uuid=$uuid" >> "$GITHUB_OUTPUT"
+      - name: B2C v3 vs v1
+        env:
+          DARAJA_CONSUMER_KEY: ${{ secrets.DARAJA_CONSUMER_KEY }}
+          DARAJA_CONSUMER_SECRET: ${{ secrets.DARAJA_CONSUMER_SECRET }}
+          DARAJA_INITIATOR_NAME: ${{ secrets.DARAJA_INITIATOR_NAME }}
+          DARAJA_SECURITY_CREDENTIAL: ${{ secrets.DARAJA_SECURITY_CREDENTIAL }}
+          DARAJA_B2C_SHORTCODE: ${{ secrets.DARAJA_B2C_SHORTCODE }}
+          DARAJA_TILL: ${{ secrets.DARAJA_TILL }}
+          DARAJA_CALLBACK_URL: https://webhook.site/${{ steps.hook.outputs.uuid }}
+        run: |
           echo "== b2c v3 vs v1"; python scripts/sandbox_probe.py b2c || true
-          echo "== c2b v2 (the flow that yields a successful callback)"; python scripts/sandbox_probe.py c2b || true
-          echo "== paths: where does each endpoint stop (reachable, product-gated, edge-blocked)?"; python scripts/sandbox_probe.py paths || true
+      - name: What Safaricom delivered to the receiver
+        if: always()
+        run: |
+          sleep 30
+          python scripts/sandbox_probe.py callbacks "${{ steps.hook.outputs.uuid }}"
+
+  c2b:
+    name: C2B v2 (the flow that yields a successful callback)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Create a webhook.site receiver for Safaricom's callbacks
+        id: hook
+        run: |
+          uuid=$(curl -fsS -X POST https://webhook.site/token -H 'Content-Type: application/json' -d '{"default_status":200,"default_content":"ok"}' | python -c "import sys,json; print(json.load(sys.stdin)['uuid'])")
+          echo "uuid=$uuid" >> "$GITHUB_OUTPUT"
+      - name: C2B v2 (the flow that yields a successful callback)
+        env:
+          DARAJA_CONSUMER_KEY: ${{ secrets.DARAJA_CONSUMER_KEY }}
+          DARAJA_CONSUMER_SECRET: ${{ secrets.DARAJA_CONSUMER_SECRET }}
+          DARAJA_INITIATOR_NAME: ${{ secrets.DARAJA_INITIATOR_NAME }}
+          DARAJA_SECURITY_CREDENTIAL: ${{ secrets.DARAJA_SECURITY_CREDENTIAL }}
+          DARAJA_B2C_SHORTCODE: ${{ secrets.DARAJA_B2C_SHORTCODE }}
+          DARAJA_TILL: ${{ secrets.DARAJA_TILL }}
+          DARAJA_CALLBACK_URL: https://webhook.site/${{ steps.hook.outputs.uuid }}
+        run: |
+          echo "== c2b v2 register and simulate"; python scripts/sandbox_probe.py c2b || true
       - name: What Safaricom delivered to the receiver
         if: always()
         run: |

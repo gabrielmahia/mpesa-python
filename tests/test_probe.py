@@ -158,3 +158,23 @@ def test_paths_names_the_key_by_its_last_four_characters_only(mock_url, env, cap
     c = capsys.readouterr()
     out = json.loads(c.out)
     assert out["key_ends_with"] == "kkkk" and out["key_length"] == 48 and ("k" * 5) not in c.out and ("s" * 64) not in c.out + c.err
+
+
+def test_c2b_uses_the_b2c_shortcode_secret_when_no_c2b_one_is_set(mock_url, env, monkeypatch, capsys):
+    monkeypatch.delenv("DARAJA_C2B_SHORTCODE", raising=False)
+    monkeypatch.setenv("DARAJA_B2C_SHORTCODE", "600555")
+    sent = []
+    monkeypatch.setattr(probe, "_post", lambda url, token, payload: (sent.append((url.rsplit("/", 1)[-1], payload.get("ShortCode"))) or (200, '{"ResponseCode":"0"}')))
+    assert probe.main(["c2b", "--base-url", mock_url]) == 0
+    assert sent == [("registerurl", "600555"), ("simulate", "600555")]
+    assert "600555" in json.loads(capsys.readouterr().out)["shortcodes_tried"]
+
+
+def test_c2b_shortcode_precedence(monkeypatch):
+    monkeypatch.setenv("DARAJA_B2C_SHORTCODE", "111111")
+    monkeypatch.setenv("DARAJA_C2B_SHORTCODE", "222222")
+    assert probe.c2b_shortcodes() == ["222222"]
+    monkeypatch.delenv("DARAJA_C2B_SHORTCODE")
+    assert probe.c2b_shortcodes() == ["111111"]
+    monkeypatch.delenv("DARAJA_B2C_SHORTCODE")
+    assert probe.c2b_shortcodes() == probe.C2B_CANDIDATES
