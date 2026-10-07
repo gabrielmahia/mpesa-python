@@ -149,12 +149,71 @@ def callbacks(argv: list[str]) -> int:
     return 0
 
 
+PATHS = [("stk push (control)", "/mpesa/stkpush/v1/processrequest"), ("stk query (control)", "/mpesa/stkpushquery/v1/query"),
+         ("b2c v1", "/mpesa/b2c/v1/paymentrequest"), ("b2c v2", "/mpesa/b2c/v2/paymentrequest"), ("b2c v3", "/mpesa/b2c/v3/paymentrequest"),
+         ("c2b v1 registerurl", "/mpesa/c2b/v1/registerurl"), ("c2b v2 registerurl", "/mpesa/c2b/v2/registerurl"),
+         ("c2b v1 simulate", "/mpesa/c2b/v1/simulate"), ("c2b v2 simulate", "/mpesa/c2b/v2/simulate"),
+         ("transaction status", "/mpesa/transactionstatus/v1/query"), ("account balance", "/mpesa/accountbalance/v1/query"),
+         ("reversal", "/mpesa/reversal/v1/request"), ("b2b", "/mpesa/b2b/v1/paymentrequest")]
+BROWSER_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+
+
+def reach(status: int, body: str) -> str:
+    """Where a request stopped: NOT FOUND, PRODUCT NOT GRANTED, EDGE BLOCK (an HTML page from a firewall, not Daraja), UNAUTHORIZED, or REACHABLE (Daraja's own validation answered)."""
+    if status == 404:
+        return "NOT FOUND"
+    if status == 401 and "apiproduct" in body.lower():
+        return "PRODUCT NOT GRANTED"
+    if status in (401, 403) and body.lstrip().lower().startswith(("<html", "<!doctype")):
+        return f"EDGE BLOCK ({status}, HTML page)"
+    if status == 401:
+        return "UNAUTHORIZED (no product detail)"
+    if status == 403:
+        return "FORBIDDEN"
+    return f"REACHABLE ({status})"
+
+
+def _post_ua(url: str, token: str, payload: dict, ua: str | None) -> tuple[int, str]:
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    if ua:
+        headers["User-Agent"] = ua
+    req = urllib.request.Request(url, data=json.dumps(payload).encode(), method="POST", headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=40) as r:
+            return r.status, r.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode("utf-8", "replace")
+
+
+def paths(argv: list[str]) -> int:
+    """Send an EMPTY body to each endpoint (nothing is executed) and report where it stopped, with the default and a browser User-Agent."""
+    base = argv[argv.index("--base-url") + 1].rstrip("/") if "--base-url" in argv else "https://sandbox.safaricom.co.ke"
+    key, secret = os.environ.get("DARAJA_CONSUMER_KEY", ""), os.environ.get("DARAJA_CONSUMER_SECRET", "")
+    if not key or not secret:
+        print("Refusing to run: DARAJA_CONSUMER_KEY / DARAJA_CONSUMER_SECRET are not set.", file=sys.stderr)
+        return 2
+    from mpesa.auth import Auth
+    from mpesa.exceptions import MpesaError
+
+    try:
+        token = Auth(key, secret, sandbox=True, base_url=None if base == "https://sandbox.safaricom.co.ke" else base).token()
+    except MpesaError as exc:
+        print(json.dumps({"probe": "paths", "result": "FAILED", "step": "oauth", "error": type(exc).__name__}))
+        return 1
+    out: dict = {"probe": "paths", "result": "REPORTED", "default_ua": {}, "browser_ua": {}}
+    for label, path in PATHS:
+        for key, ua in (("default_ua", None), ("browser_ua", BROWSER_UA)):
+            out[key][label] = reach(*_post_ua(base + path, token, {}, ua))
+    print(json.dumps(out))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
-    if not argv or argv[0] not in ("b2c", "c2b", "callbacks"):
+    if not argv or argv[0] not in ("b2c", "c2b", "callbacks", "paths"):
         print(__doc__, file=sys.stderr)
         return 2
-    return {"b2c": b2c, "c2b": c2b, "callbacks": callbacks}[argv[0]](argv[1:])
+    return {"b2c": b2c, "c2b": c2b, "callbacks": callbacks, "paths": paths}[argv[0]](argv[1:])
 
 
 if __name__ == "__main__":

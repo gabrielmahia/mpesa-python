@@ -125,3 +125,22 @@ def test_c2b_moves_on_when_a_shortcode_is_rejected_and_reports_each(env, capsys)
 def test_c2b_refuses_without_credentials(monkeypatch):
     monkeypatch.delenv("DARAJA_CONSUMER_KEY", raising=False)
     assert probe.main(["c2b"]) == 2
+
+
+@pytest.mark.parametrize("status,body,expected", [
+    (404, "", "NOT FOUND"),
+    (401, "Error Occurred - Invalid Access Token - Invalid API call as no apiproduct match found", "PRODUCT NOT GRANTED"),
+    (401, "Error Occurred - Invalid Access Token - ", "UNAUTHORIZED (no product detail)"),
+    (403, '<html style="height:100%"><head><META NAME="ROBOTS"', "EDGE BLOCK (403, HTML page)"),
+    (403, '{"errorMessage":"x"}', "FORBIDDEN"),
+    (400, '{"errorCode":"400.002.02"}', "REACHABLE (400)"),
+])
+def test_reach_says_where_a_request_stopped(status, body, expected):
+    assert probe.reach(status, body) == expected
+
+
+def test_paths_reports_both_user_agents_and_executes_nothing(mock_url, env, capsys):
+    assert probe.main(["paths", "--base-url", mock_url]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert set(out["default_ua"]) == {label for label, _ in probe.PATHS} == set(out["browser_ua"])
+    assert out["default_ua"]["b2c v1"] == "NOT FOUND"  # the mock implements v3 only
