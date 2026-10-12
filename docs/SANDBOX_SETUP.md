@@ -72,3 +72,16 @@ result = client.stk_push("0712345678", 10, "REF", "Test", callback_url="https://
 ## Still unknown
 - **Whether STK callbacks mask the phone number on a successful payment.** The sandbox test phone cannot complete a payment, so this cannot be observed here. One secondary source says they do, and C2B v2 does (above). `parse_stk_callback` returns the field as a string either way; match by `checkout_request_id` or receipt, not by phone.
 - **Whether B2C `v1` still works in production** (it accepts requests in the sandbox). The Safaricom-derived spec says `v3` is current; this SDK uses `v3`.
+
+## Callback URL paths: what the sandbox does with `mpesa`, `safaricom`, `query` and `exec` (verified 2026-10-12)
+Safaricom's C2B Register URL documentation says to avoid "M-PESA, Safaricom, exe, exec, cmd, SQL, query" (any case) in URLs, and not to use public URL testers such as ngrok or mockbin in production. A production user reported Safaricom rejecting an STK Push callback URL with `/mpesa/` in its path.
+
+The **Sandbox callback URLs** workflow (`scripts/sandbox_probe.py urls`) sent one Account Balance request (no money moves) per path variant, with the result and timeout URL set to a receiver plus that path. Result: **all six variants were accepted at request time and all six callbacks were delivered**: `/payments/` (control), `/mpesa/`, `/m-pesa/`, `/safaricom/`, `/query/` and `/exec/`.
+
+What this does and does not show:
+- The sandbox does not enforce the documented keyword rule on per-request result URLs for Account Balance. A rejection reported from production cannot be reproduced here.
+- Not tested: STK Push `CallBackURL` (the sandbox cannot complete an STK payment, so delivery is unobservable), C2B Register URL (the sandbox returns a duplicate-registration error for a shortcode that is already registered), and any production behaviour (no production credentials).
+- Practical advice stays the same: use neutral paths such as `/payments/...` in production, where the filter is documented; the examples in this repository do.
+
+## Sandbox initiator credential can lock (`8006`)
+On 2026-10-12 every Account Balance result carried `ResultCode 8006`, "The security credential is locked", although the same credential returned `ResultCode 0` on 2026-10-07. The request is still *accepted* (HTTP 200), so a probe that reads only the acknowledgement would miss it; read the result callback. The cause is not established. Reset the initiator password on the Daraja portal's Test Credentials page, regenerate the security credential and update the `DARAJA_SECURITY_CREDENTIAL` repository secret.
