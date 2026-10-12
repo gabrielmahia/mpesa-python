@@ -18,7 +18,12 @@ from mpesa.exceptions import (
     TimeoutError as MpesaTimeoutError,
 )
 
-__version__ = "0.1.2"
+try:  # the single source of truth is the installed package's metadata (pyproject.toml)
+    from importlib.metadata import version as _pkg_version
+
+    __version__ = _pkg_version("daraja-v3")
+except Exception:  # noqa: BLE001  (running from a source tree that is not installed)
+    __version__ = "0+unknown"
 __all__ = [
     "MpesaClient",
     "MpesaAsyncClient",

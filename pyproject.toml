@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "daraja-v3"
-version = "0.1.2"
+version = "0.2.0"
 description = "Production Python SDK for Safaricom M-Pesa Daraja v3"
 readme = "README.md"
 license = {text = "MIT"}

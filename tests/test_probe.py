@@ -267,9 +267,8 @@ def test_urls_probe_sends_one_balance_request_per_variant_with_the_path_appended
     sent = []
     monkeypatch.setattr(probe, "_post_retry", lambda url, token, payload, **k: (sent.append((url, payload)) or (200, '{"ResponseCode":"0"}')))
     monkeypatch.setattr(probe.time, "sleep", lambda s: None)
-    mock = DarajaMock()
-    url = mock.run_thread(port=_free_port())
-    assert probe.main(["urls", "--base-url", url, "--pace", "0"]) == 0
+    monkeypatch.setattr("mpesa.auth.Auth.token", lambda self: "test-token")  # this test is about the request URLs, not OAuth (the mock's OAuth is intermittent)
+    assert probe.main(["urls", "--pace", "0"]) == 0
     paths = [p["ResultURL"] for _, p in sent]
     assert paths == [f"https://hook.example/abc{path}" for _, path in probe.URL_VARIANTS]
     assert any("/mpesa/" in p for p in paths) and any("/safaricom/" in p for p in paths) and any("/payments/" in p for p in paths)
