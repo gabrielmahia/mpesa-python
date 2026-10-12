@@ -4,12 +4,12 @@
 
 **Production Python SDK for Safaricom M-Pesa Daraja v3.**
 
-[![Tests](https://img.shields.io/badge/tests-33%20passing-brightgreen)](https://github.com/gabrielmahia/mpesa-python/actions)
+[![CI](https://github.com/gabrielmahia/mpesa-python/actions/workflows/ci.yml/badge.svg)](https://github.com/gabrielmahia/mpesa-python/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/daraja-v3/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![PyPI](https://img.shields.io/badge/pypi-mpesa--python-orange)](https://pypi.org/project/daraja-v3/)
+[![PyPI](https://img.shields.io/pypi/v/daraja-v3)](https://pypi.org/project/daraja-v3/)
 
-Zero external dependencies. Type-annotated. Stripe-quality error handling.
+Zero required runtime dependencies for the synchronous API; optional aiohttp-based native async transport. Type-annotated. Structured error handling.
 
 ```python
 from mpesa import MpesaClient
@@ -27,7 +27,7 @@ result = client.stk_push(
     phone="0712345678",     # any Kenyan format — normalised automatically
     amount=500,
     reference="Order-001",
-    callback_url="https://yourapp.com/mpesa/callback",
+    callback_url="https://yourapp.com/payments/callback",
 )
 print(result.checkout_request_id)
 ```
@@ -79,6 +79,28 @@ Roadmap: Reversal, Transaction Status, QR Code, Ratiba (recurring payments)
 
 ## Usage guide
 
+### Native async (FastAPI / asyncio)
+
+Install `pip install "daraja-v3[async]"` for an optional `aiohttp` transport. This is true nonblocking I/O, not a wrapper around `asyncio.to_thread`:
+
+```python
+from mpesa import MpesaAsyncClient
+
+async with MpesaAsyncClient("consumer_key", "consumer_secret", "174379",
+                            passkey="passkey", sandbox=True) as async_client:
+    pending = await async_client.stk_push(
+        phone="0712345678", amount=500, reference="Order-001",
+        callback_url="https://yourapp.com/payments/stk/callback",
+    )
+    print(pending.checkout_request_id)  # initiated, NOT confirmation of payment
+```
+
+The async client supports STK Push/query, B2C, C2B registration and account balance. See [docs/async.md](docs/async.md) for lifecycle, OAuth caching, reconciliation, and callback safety.
+
+### Production webhook safety
+
+Respond promptly **after durably recording** an incoming event, perform expensive work in a worker, enforce an atomic uniqueness constraint keyed on `CheckoutRequestID`, and reconcile before fulfilling orders. Safaricom may retry; do not rely on in-process background tasks or a process-local set for durable idempotency. One production integrator reported callback URL rejection for a path containing `mpesa`, so the examples use neutral `/payments/` paths; this is field evidence, not an independently verified universal naming rule. See [callback guidance](docs/async.md#callback-url-and-delivery-lessons).
+
 ### STK Push + webhook
 
 ```python
@@ -88,7 +110,7 @@ result = client.stk_push(
     amount=1500,
     reference="Invoice-2024-042",
     description="Subscription",
-    callback_url="https://yourapp.com/mpesa/stk/callback",
+    callback_url="https://yourapp.com/payments/stk/callback",
 )
 
 # 2. Store result.checkout_request_id against your order
@@ -114,8 +136,8 @@ result = client.b2c(
     remarks="Monthly stipend",
     initiator_name="testapi",             # from your Daraja portal
     security_credential="encrypted_cred",
-    callback_url="https://yourapp.com/mpesa/b2c/result",
-    queue_timeout_url="https://yourapp.com/mpesa/b2c/timeout",
+    callback_url="https://yourapp.com/payments/b2c/result",
+    queue_timeout_url="https://yourapp.com/payments/b2c/timeout",
 )
 print(result.conversation_id)  # use to reconcile
 ```
@@ -145,7 +167,7 @@ except MpesaError as e:
 
 ### Phone number normalisation
 
-The SDK accepts any Kenyan phone format and normalises to `2547XXXXXXXX`:
+The SDK accepts Kenyan mobile numbers in the 07 and 01 ranges, normalising to `2547XXXXXXXX` or `2541XXXXXXXX` (format validation does not establish the subscriber's M-Pesa eligibility):
 
 ```python
 from mpesa.validators import phone
@@ -154,6 +176,7 @@ phone("0712345678")      # → "254712345678"
 phone("+254712345678")   # → "254712345678"
 phone("254712345678")    # → "254712345678"
 phone("712345678")       # → "254712345678"
+phone("0112345678")      # → "254112345678"
 phone("bad-number")      # → raises ValidationError
 ```
 
@@ -186,7 +209,7 @@ export MPESA_CONSUMER_KEY="your_sandbox_key"
 export MPESA_CONSUMER_SECRET="your_sandbox_secret"
 export MPESA_SHORTCODE="174379"
 export MPESA_PASSKEY="your_sandbox_passkey"
-export MPESA_CALLBACK_URL="https://your-ngrok-tunnel.ngrok.io/mpesa/callback"
+export MPESA_CALLBACK_URL="https://your-ngrok-tunnel.ngrok.io/payments/stk/callback"
 
 pytest tests/integration/ -v
 ```
