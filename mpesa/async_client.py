@@ -7,6 +7,7 @@ are reused where safe to keep the two clients behaviorally aligned.
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import time
 from datetime import datetime
@@ -91,7 +92,9 @@ class MpesaAsyncClient:
             try:
                 async with self._http().get(
                     self._config._auth._url,
-                    auth=self._aiohttp.BasicAuth(self._key, self._secret),
+                    headers={"Authorization": "Basic " + base64.b64encode(
+                        f"{self._key}:{self._secret}".encode()
+                    ).decode()},
                     timeout=self._aiohttp.ClientTimeout(total=15),
                 ) as response:
                     if response.status >= 400:
