@@ -1,0 +1,42 @@
+name: Sandbox callback URLs
+
+# Does a callback URL containing "mpesa", "safaricom", "query" or "exec" in its path change what the SANDBOX accepts or delivers?
+# (Safaricom's C2B Register URL docs say to avoid those words; a production user reported STK Push trouble with /mpesa/ paths.)
+# One fresh job, paced requests (Safaricom's firewall blocks bursts). Needs the same repository secrets as "Sandbox probe". No secret is printed.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  urls:
+    name: Callback URL path variants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Create a webhook.site receiver
+        id: hook
+        run: |
+          uuid=$(curl -fsS -X POST https://webhook.site/token -H 'Content-Type: application/json' -d '{"default_status":200,"default_content":"ok"}' | python -c 'import sys,json;print(json.load(sys.stdin)["uuid"])')
+          echo "uuid=$uuid" >> "$GITHUB_OUTPUT"
+      - name: Send one Account Balance request per URL path variant
+        env:
+          DARAJA_CONSUMER_KEY: ${{ secrets.DARAJA_CONSUMER_KEY }}
+          DARAJA_CONSUMER_SECRET: ${{ secrets.DARAJA_CONSUMER_SECRET }}
+          DARAJA_INITIATOR_NAME: ${{ secrets.DARAJA_INITIATOR_NAME }}
+          DARAJA_SECURITY_CREDENTIAL: ${{ secrets.DARAJA_SECURITY_CREDENTIAL }}
+          DARAJA_B2C_SHORTCODE: ${{ secrets.DARAJA_B2C_SHORTCODE }}
+          DARAJA_PARTY_A: ${{ secrets.DARAJA_PARTY_A }}
+          DARAJA_CALLBACK_URL: https://webhook.site/${{ steps.hook.outputs.uuid }}
+        run: python scripts/sandbox_probe.py urls
+      - name: What Safaricom delivered, by path
+        if: always()
+        run: |
+          sleep 60
+          python scripts/sandbox_probe.py callbacks "${{ steps.hook.outputs.uuid }}"

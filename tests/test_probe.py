@@ -257,3 +257,28 @@ def test_balance_sends_an_account_balance_query_and_skips_without_a_credential(m
     assert probe.main(["balance", "--base-url", url]) == 0
     assert sent[0][0] == "accountbalance" and sent[0][1]["PartyA"] == "600222" and sent[0][1]["CommandID"] == "AccountBalance" and sent[0][1]["IdentifierType"] == "4"
     assert "CRED" * 20 not in capsys.readouterr().out
+
+
+def test_urls_probe_sends_one_balance_request_per_variant_with_the_path_appended(monkeypatch, capsys):
+    monkeypatch.setenv("DARAJA_CONSUMER_KEY", "k" * 48)
+    monkeypatch.setenv("DARAJA_CONSUMER_SECRET", "s" * 64)
+    monkeypatch.setenv("DARAJA_SECURITY_CREDENTIAL", "CRED" * 20)
+    monkeypatch.setenv("DARAJA_CALLBACK_URL", "https://hook.example/abc/")
+    sent = []
+    monkeypatch.setattr(probe, "_post_retry", lambda url, token, payload, **k: (sent.append((url, payload)) or (200, '{"ResponseCode":"0"}')))
+    monkeypatch.setattr(probe.time, "sleep", lambda s: None)
+    mock = DarajaMock()
+    url = mock.run_thread(port=_free_port())
+    assert probe.main(["urls", "--base-url", url, "--pace", "0"]) == 0
+    paths = [p["ResultURL"] for _, p in sent]
+    assert paths == [f"https://hook.example/abc{path}" for _, path in probe.URL_VARIANTS]
+    assert any("/mpesa/" in p for p in paths) and any("/safaricom/" in p for p in paths) and any("/payments/" in p for p in paths)
+    assert all(p["ResultURL"] == p["QueueTimeOutURL"] for _, p in sent) and "CRED" * 20 not in capsys.readouterr().out
+
+
+def test_urls_probe_skips_without_a_credential_or_receiver(monkeypatch, capsys):
+    monkeypatch.setenv("DARAJA_CONSUMER_KEY", "k" * 48)
+    monkeypatch.setenv("DARAJA_CONSUMER_SECRET", "s" * 64)
+    monkeypatch.delenv("DARAJA_SECURITY_CREDENTIAL", raising=False)
+    monkeypatch.delenv("DARAJA_CALLBACK_URL", raising=False)
+    assert probe.main(["urls"]) == 0 and json.loads(capsys.readouterr().out)["result"] == "SKIPPED"

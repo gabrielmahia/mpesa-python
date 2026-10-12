@@ -288,12 +288,48 @@ def paths(argv: list[str]) -> int:
     return 0
 
 
+URL_VARIANTS = [("control", "/payments/result"), ("mpesa", "/mpesa/result"), ("m-pesa", "/m-pesa/result"), ("safaricom", "/safaricom/result"), ("query", "/query/result"), ("exec", "/exec/result")]
+
+
+def urls(argv: list[str]) -> int:
+    """Does a callback URL whose path contains one of Safaricom's documented forbidden words change what the SANDBOX accepts or delivers?
+    Safaricom's C2B Register URL documentation says to avoid M-PESA, Safaricom, exe, exec, cmd, SQL and query (any case) in URLs. This sends Account Balance
+    (moves no money) once per variant with ResultURL = QueueTimeOutURL = <DARAJA_CALLBACK_URL><path>, then reads what arrived with the callbacks probe (per path)."""
+    key, secret, cred = os.environ.get("DARAJA_CONSUMER_KEY", ""), os.environ.get("DARAJA_CONSUMER_SECRET", ""), os.environ.get("DARAJA_SECURITY_CREDENTIAL", "")
+    cb_base = os.environ.get("DARAJA_CALLBACK_URL", "").rstrip("/")
+    if not key or not secret:
+        print("Refusing to run: DARAJA_CONSUMER_KEY / DARAJA_CONSUMER_SECRET are not set.", file=sys.stderr)
+        return 2
+    if not cred or not cb_base:
+        print(json.dumps({"probe": "urls", "result": "SKIPPED", "reason": "DARAJA_SECURITY_CREDENTIAL and DARAJA_CALLBACK_URL are required"}))
+        return 0
+    base = argv[argv.index("--base-url") + 1].rstrip("/") if "--base-url" in argv else "https://sandbox.safaricom.co.ke"
+    pace = float(argv[argv.index("--pace") + 1]) if "--pace" in argv else 5.0
+    from mpesa.auth import Auth
+    from mpesa.exceptions import MpesaError
+
+    try:
+        token = Auth(key, secret, sandbox=True, base_url=None if base == "https://sandbox.safaricom.co.ke" else base).token()
+    except MpesaError as exc:
+        print(json.dumps({"probe": "urls", "result": "FAILED", "step": "oauth", "error": type(exc).__name__}))
+        return 1
+    initiator = os.environ.get("DARAJA_INITIATOR_NAME") or "testapi"
+    party = os.environ.get("DARAJA_PARTY_A") or os.environ.get("DARAJA_B2C_SHORTCODE") or "600000"
+    for label, path in URL_VARIANTS:
+        url = cb_base + path
+        status, body = _post_retry(f"{base}/mpesa/accountbalance/v1/query", token, {"Initiator": initiator, "SecurityCredential": cred, "CommandID": "AccountBalance", "PartyA": party, "IdentifierType": "4", "Remarks": f"url-{label}", "QueueTimeOutURL": url, "ResultURL": url})
+        print(json.dumps({"probe": "urls", "variant": label, "path": path, "request": classify(status, body)}), flush=True)
+        time.sleep(pace)
+    print(json.dumps({"probe": "urls", "result": "SENT", "next": "the callbacks summary lists the path each result arrived on; a variant that never arrives was filtered or dropped"}))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
-    if not argv or argv[0] not in ("b2c", "c2b", "balance", "callbacks", "paths"):
+    if not argv or argv[0] not in ("b2c", "c2b", "balance", "urls", "callbacks", "paths"):
         print(__doc__, file=sys.stderr)
         return 2
-    return {"b2c": b2c, "c2b": c2b, "balance": balance, "callbacks": callbacks, "paths": paths}[argv[0]](argv[1:])
+    return {"b2c": b2c, "c2b": c2b, "balance": balance, "urls": urls, "callbacks": callbacks, "paths": paths}[argv[0]](argv[1:])
 
 
 if __name__ == "__main__":
