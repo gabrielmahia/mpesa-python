@@ -7,6 +7,7 @@ Quick start:
     result = client.stk_push(phone="0712345678", amount=100, reference="Order-001")
 """
 from mpesa.client import MpesaClient
+from mpesa.async_client import MpesaAsyncClient
 from mpesa.exceptions import (
     AuthenticationError,
     MpesaError,
@@ -17,9 +18,10 @@ from mpesa.exceptions import (
     TimeoutError as MpesaTimeoutError,
 )
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 __all__ = [
     "MpesaClient",
+    "MpesaAsyncClient",
     "MpesaError",
     "AuthenticationError",
     "ValidationError",
