@@ -191,3 +191,54 @@ def test_post_timeout_is_explicit(monkeypatch):
 def test_base_url_validation_matches_sync_client():
     with pytest.raises(ValueError):
         MpesaAsyncClient("k", "s", "174379", base_url="http://remote.example")
+
+
+def test_native_nonblocking_http_against_local_aiohttp_server():
+    """Server and client share one event loop: blocking urllib would deadlock."""
+    from aiohttp import web
+
+    async def exercise():
+        seen = {"oauth": 0, "stk": 0}
+
+        async def oauth(request):
+            seen["oauth"] += 1
+            assert request.headers["Authorization"].startswith("Basic ")
+            return web.json_response({"access_token": "LOCAL_ONLY", "expires_in": 3600})
+
+        async def stk(request):
+            seen["stk"] += 1
+            assert request.headers["Authorization"] == "Bearer LOCAL_ONLY"
+            payload = await request.json()
+            assert payload["PhoneNumber"] == "254112345678"
+            assert payload["PartyB"] == "654321"
+            return web.json_response({
+                "MerchantRequestID": "m-local", "CheckoutRequestID": "c-local",
+                "ResponseDescription": "Accepted", "CustomerMessage": "Accepted",
+            })
+
+        app = web.Application()
+        app.router.add_get("/oauth/v1/generate", oauth)
+        app.router.add_post("/mpesa/stkpush/v1/processrequest", stk)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        try:
+            site = web.TCPSite(runner, "127.0.0.1", 0)
+            await site.start()
+            assert site._server is not None
+            port = site._server.sockets[0].getsockname()[1]
+            async with MpesaAsyncClient(
+                "key", "secret", "174379", passkey="pass",
+                base_url=f"http://localhost:{port}",
+            ) as c:
+                result = await asyncio.wait_for(c.stk_push(
+                    "0112345678", 100, "INV-1", party_b="654321",
+                    callback_url="https://example.org/payments/stk",
+                ), timeout=5)
+                assert result.checkout_request_id == "c-local"
+                # A second call must reuse the token.
+                await c.stk_push("0712345678", 100, "INV-2")
+            assert seen == {"oauth": 1, "stk": 2}
+        finally:
+            await runner.cleanup()
+
+    asyncio.run(exercise())
