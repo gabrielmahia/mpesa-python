@@ -1,0 +1,32 @@
+name: Sandbox async check
+
+# Live SANDBOX check of the native async client (concurrent OAuth, STK Push, STK Query). Needs DARAJA_CONSUMER_KEY and DARAJA_CONSUMER_SECRET repository secrets.
+# Run it by hand on the branch that contains mpesa/async_client.py. No secret is printed.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  async:
+    name: Async client against the sandbox
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[async]"
+      - name: Create a webhook.site receiver
+        id: hook
+        run: |
+          uuid=$(curl -fsS -X POST https://webhook.site/token -H 'Content-Type: application/json' -d '{"default_status":200,"default_content":"ok"}' | python -c 'import sys,json;print(json.load(sys.stdin)["uuid"])')
+          echo "uuid=$uuid" >> "$GITHUB_OUTPUT"
+      - name: Run the async check
+        env:
+          DARAJA_CONSUMER_KEY: ${{ secrets.DARAJA_CONSUMER_KEY }}
+          DARAJA_CONSUMER_SECRET: ${{ secrets.DARAJA_CONSUMER_SECRET }}
+          DARAJA_CALLBACK_URL: https://webhook.site/${{ steps.hook.outputs.uuid }}
+        run: python scripts/sandbox_async_check.py
