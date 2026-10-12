@@ -1,8 +1,6 @@
 """Offline regression tests for the genuine aiohttp transport (no Safaricom calls)."""
 import asyncio
 import base64
-from unittest.mock import patch
-
 import pytest
 
 pytest.importorskip("aiohttp")
