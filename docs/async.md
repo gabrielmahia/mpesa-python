@@ -40,7 +40,7 @@ In FastAPI, prefer a long-lived client created at startup and closed at shutdown
 - `stk_push()` returns **initiation**, not settlement. `stk_query()` and callbacks are separate operations.
 - Phone numbers in callbacks may be masked: join by `CheckoutRequestID`, not `PhoneNumber`.
 
-See [the SDK README](../README.md) and [mpesa-webhooks](https://github.com/gabrielmahia/mpesa-webhooks) for a related callback-handler project. Review that handler's storage/ack/verification semantics for your deployment; an in-memory idempotency store or background handler is not sufficient for multi-worker production systems.
+See [the SDK README](../README.md). The separate [mpesa-webhooks](https://github.com/gabrielmahia/mpesa-webhooks) repository is **archived** and should be treated as historical reference, **not a production-ready callback handler**: its published router awaits application handlers before acknowledging and its default in-memory receipt check/write is not atomic or durable. Do not deploy it unchanged for real payments.
 
 ## Error handling
 
