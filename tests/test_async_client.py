@@ -148,7 +148,7 @@ def test_auth_lock_token_cache_transport_and_close(monkeypatch):
         tokens = await asyncio.gather(*[c._token() for _ in range(8)])
         assert tokens == ["TEST_TOKEN"] * 8
         assert len(fake.get_calls) == 1
-        assert fake.get_calls[0][1]["auth"].login == "test-key"
+        assert fake.get_calls[0][1]["headers"]["Authorization"] == "Basic " + base64.b64encode(b"test-key:test-secret").decode()
         await asyncio.gather(c.account_balance("https://example.com/payments/cb"),
                              c.c2b_register_urls("https://example.com/payments/v",
                                                  "https://example.com/payments/c"))
@@ -209,8 +209,12 @@ def test_native_nonblocking_http_against_local_aiohttp_server():
             seen["stk"] += 1
             assert request.headers["Authorization"] == "Bearer LOCAL_ONLY"
             payload = await request.json()
-            assert payload["PhoneNumber"] == "254112345678"
-            assert payload["PartyB"] == "654321"
+            if seen["stk"] == 1:
+                assert payload["PhoneNumber"] == "254112345678"
+                assert payload["PartyB"] == "654321"
+            else:
+                assert payload["PhoneNumber"] == "254712345678"
+                assert payload["PartyB"] == "174379"
             return web.json_response({
                 "MerchantRequestID": "m-local", "CheckoutRequestID": "c-local",
                 "ResponseDescription": "Accepted", "CustomerMessage": "Accepted",
