@@ -17,7 +17,7 @@ Usage:
         amount=500,
         reference="Order-2024-001",
         description="Coffee order",
-        callback_url="https://yourapp.com/mpesa/callback",
+        callback_url="https://yourapp.com/payments/callback",
     )
     print(result.checkout_request_id)  # use to query status
 
@@ -26,7 +26,7 @@ Usage:
         phone="0712345678",
         amount=1000,
         remarks="Refund for order 001",
-        callback_url="https://yourapp.com/mpesa/b2c/callback",
+        callback_url="https://yourapp.com/payments/b2c/callback",
     )
 """
 from __future__ import annotations
@@ -83,8 +83,9 @@ class STKQueryResult:
 class MpesaClient:
     """Production-grade M-Pesa Daraja v3 client.
 
-    Thread-safe. Token cache is per-instance.
-    For async applications, use MpesaAsyncClient (see docs/async.md).
+    This is a synchronous client with per-instance token cache.
+    For native nonblocking asyncio operations, install daraja-v3[async] and
+    use MpesaAsyncClient (see docs/async.md).
     """
 
     _SANDBOX_BASE = "https://sandbox.safaricom.co.ke"
