@@ -85,3 +85,6 @@ What this does and does not show:
 
 ## Sandbox initiator credential can lock (`8006`)
 On 2026-10-12 every Account Balance result carried `ResultCode 8006`, "The security credential is locked", although the same credential returned `ResultCode 0` on 2026-10-07. The request is still *accepted* (HTTP 200), so a probe that reads only the acknowledgement would miss it; read the result callback. The cause is not established. Reset the initiator password on the Daraja portal's Test Credentials page, regenerate the security credential and update the `DARAJA_SECURITY_CREDENTIAL` repository secret.
+
+## When the sandbox misbehaves: a local simulator (community project, not vetted by us)
+Developers have reported that Safaricom's sandbox mostly takes the "happy path", and we have hit a locked initiator (`8006`) and intermittent errors ourselves. A community project, [Pesa Playground](https://github.com/OmentaElvis/pesa-playground) (BSD-2-Clause; releases up to v1.4.1 in January 2026; last push June 2026), is a local simulator of the M-PESA flows that aims to include failure paths. We have not run it, so check that it matches the request and callback formats you need. Safaricom's sandbox remains the reference for the real request shapes; the repository's own `daraja-mock` covers the unit-test level.
