@@ -4,6 +4,8 @@
 
 **Production Python SDK for Safaricom M-Pesa Daraja v3.**
 
+**Maintainer:** Gabriel Mahia · [Software citation](CITATION.cff) · [MIT license](LICENSE). Please cite or link to the original project when it helps your work; preserve required copyright and license notices if redistributing substantial portions. Public citation is appreciated, not an additional MIT condition.
+
 [![CI](https://github.com/gabrielmahia/mpesa-python/actions/workflows/ci.yml/badge.svg)](https://github.com/gabrielmahia/mpesa-python/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/daraja-v3/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
