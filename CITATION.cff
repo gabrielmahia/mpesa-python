@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite this project and its contributors."
+type: software
+title: "daraja-v3"
+abstract: "Python SDK for Safaricom M-Pesa Daraja v3"
+authors:
+  - family-names: Mahia
+    given-names: Gabriel
+    email: contact@aikungfu.dev
+repository-code: "https://github.com/gabrielmahia/mpesa-python"
+url: "https://pypi.org/project/daraja-v3/"
+license: MIT
+keywords:
+  - python
+  - mpesa
+  - daraja
+  - fintech
