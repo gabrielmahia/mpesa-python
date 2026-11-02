@@ -5,7 +5,7 @@
 **Production Python SDK for Safaricom M-Pesa Daraja v3.**
 
 [![CI](https://github.com/gabrielmahia/mpesa-python/actions/workflows/ci.yml/badge.svg)](https://github.com/gabrielmahia/mpesa-python/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/daraja-v3/)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://pypi.org/project/daraja-v3/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/daraja-v3)](https://pypi.org/project/daraja-v3/)
 
