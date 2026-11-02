@@ -104,7 +104,7 @@ class MpesaAsyncClient:
                             code=str(response.status),
                         )
                     data = await response.json(content_type=None)
-            except asyncio.TimeoutError as exc:
+            except TimeoutError as exc:
                 raise AuthenticationError("Token request timed out") from exc
             except self._aiohttp.ClientError as exc:
                 raise AuthenticationError(f"Network error during auth: {exc}") from exc
@@ -158,7 +158,7 @@ class MpesaAsyncClient:
                 if not isinstance(data, dict):
                     raise MpesaError("Expected a JSON object from Daraja")
                 return data
-        except asyncio.TimeoutError as exc:
+        except TimeoutError as exc:
             raise MpesaTimeoutError(
                 f"Daraja API timed out after {self._config._timeout}s"
             ) from exc
