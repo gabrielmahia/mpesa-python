@@ -178,7 +178,7 @@ def test_http_error_and_auth_error(monkeypatch):
 def test_post_timeout_is_explicit(monkeypatch):
     class TimedOut(FakeSession):
         def post(self, url, **kwargs):
-            raise asyncio.TimeoutError()
+            raise TimeoutError()
 
     async def exercise():
         c = client()
