@@ -2,7 +2,7 @@
 
 > Formerly `mpesa-python` — renamed to `daraja-v3` on PyPI (the original name was taken).
 
-**Production Python SDK for Safaricom M-Pesa Daraja v3.**
+**Python SDK for Safaricom M-Pesa Daraja v3.**
 
 [![CI](https://github.com/gabrielmahia/mpesa-python/actions/workflows/ci.yml/badge.svg)](https://github.com/gabrielmahia/mpesa-python/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://pypi.org/project/daraja-v3/)

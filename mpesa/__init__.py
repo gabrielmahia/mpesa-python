@@ -1,5 +1,5 @@
 """
-mpesa-python — Production Python SDK for Safaricom M-Pesa Daraja v3.
+mpesa-python — Python SDK for Safaricom M-Pesa Daraja v3.
 
 Quick start:
     from mpesa import MpesaClient

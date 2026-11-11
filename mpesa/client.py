@@ -81,7 +81,7 @@ class STKQueryResult:
 
 
 class MpesaClient:
-    """Production-grade M-Pesa Daraja v3 client.
+    """M-Pesa Daraja v3 client.
 
     This is a synchronous client with per-instance token cache.
     For native nonblocking asyncio operations, install daraja-v3[async] and

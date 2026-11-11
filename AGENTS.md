@@ -3,7 +3,7 @@
 <!-- coverage-adaptive-reasoning:v2 -->
 
 ## What this is
-Production Python SDK for Safaricom M-Pesa Daraja v3.
+Python SDK for Safaricom M-Pesa Daraja v3.
 
 ## Read first
 - README.md
