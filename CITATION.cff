@@ -3,7 +3,7 @@ message: "If you use this software, please cite it as below."
 type: software
 title: "daraja-v3"
 abstract: "Python SDK for Safaricom M-Pesa Daraja v3"
-version: "0.2.3"
+version: "0.3.0"
 authors:
   - family-names: "Mahia"
     given-names: "Gabriel"

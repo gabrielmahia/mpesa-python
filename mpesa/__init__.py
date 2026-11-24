@@ -17,6 +17,7 @@ from mpesa.exceptions import (
 from mpesa.exceptions import (
     TimeoutError as MpesaTimeoutError,
 )
+from mpesa.ratiba import RatibaResult, RatibaSchedule
 
 try:  # the single source of truth is the installed package's metadata (pyproject.toml)
     from importlib.metadata import version as _pkg_version
@@ -32,4 +33,6 @@ __all__ = [
     "ValidationError",
     "TransactionError",
     "MpesaTimeoutError",
+    "RatibaResult",
+    "RatibaSchedule",
 ]

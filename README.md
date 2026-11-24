@@ -71,9 +71,24 @@ pip install -e ".[dev]"
 | B2C | `client.b2c()` | Send money to customer wallet |
 | C2B Register | `client.c2b_register_urls()` | Register payment notification URLs |
 | Account Balance | `client.account_balance()` | Query your shortcode balance |
+| Ratiba (standing orders) | `client.ratiba_create()` | Recurring debit the customer approves with their PIN |
 | Webhook parsing | `MpesaClient.parse_stk_callback()` | Parse Safaricom's webhook body |
 
-Roadmap: Reversal, Transaction Status, QR Code, Ratiba (recurring payments)
+Roadmap: Reversal, Transaction Status, QR Code
+
+### Ratiba (recurring payments)
+
+```python
+result = client.ratiba_create(
+    phone="0712345678", amount=500, standing_order_name="Loan 42",
+    start_date="2027-01-01", end_date="2027-12-31", account_reference="LN42",
+    callback_url="https://yourapp.com/ratiba/callback", frequency="monthly",
+)
+print(result.accepted)                       # request accepted, NOT yet approved
+print(result.schedule.payments, result.schedule.total_commitment_kes)  # 12, 6000
+```
+
+The customer gets a PIN prompt; the order exists only after they approve it, and the outcome arrives at `callback_url`. Show the customer `result.schedule` (number of payments, total commitment). For `bi_monthly`, Safaricom does not define the interval precisely, so the count and total are `None`. Every field is validated locally before any network call. Ratiba is a commercial Daraja API: live use needs Safaricom's go-live agreement. Not yet exercised against the sandbox.
 
 ---
 
