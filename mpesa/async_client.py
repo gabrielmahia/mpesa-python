@@ -10,14 +10,16 @@ import asyncio
 import base64
 import json
 import time
-from datetime import datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
 import mpesa.validators as v
+from mpesa import ratiba
 from mpesa.auth import _TokenCache
 from mpesa.client import B2CResult, MpesaClient, STKQueryResult, STKResult
 from mpesa.exceptions import AuthenticationError, MpesaError, TransactionError
 from mpesa.exceptions import TimeoutError as MpesaTimeoutError
+from mpesa.ratiba import RatibaResult
 
 if TYPE_CHECKING:
     from aiohttp import ClientSession
@@ -223,6 +225,27 @@ class MpesaAsyncClient:
             is_paid=(result_code == "0"),
             raw=data,
         )
+
+    async def ratiba_create(
+        self,
+        phone: str,
+        amount: int | float,
+        standing_order_name: str,
+        start_date: str | date,
+        end_date: str | date,
+        account_reference: str,
+        callback_url: str,
+        frequency: str | int = "monthly",
+        receiver_type: str = "paybill",
+        description: str = "Standing order",
+    ) -> RatibaResult:
+        """Async twin of MpesaClient.ratiba_create (same validation, payload and schedule)."""
+        payload, schedule = ratiba.build(
+            shortcode=self._config._shortcode, phone=phone, amount=amount, standing_order_name=standing_order_name,
+            start_date=start_date, end_date=end_date, account_reference=account_reference,
+            callback_url=callback_url, frequency_=frequency, receiver_type=receiver_type, description=description,
+        )
+        return ratiba.parse_response(await self._post(ratiba.PATH, payload), schedule)
 
     async def b2c(
         self,

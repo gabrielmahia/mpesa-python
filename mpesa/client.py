@@ -37,13 +37,15 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 import mpesa.validators as v
+from mpesa import ratiba
 from mpesa.auth import Auth
 from mpesa.exceptions import MpesaError, TransactionError
 from mpesa.exceptions import TimeoutError as MpesaTimeoutError
+from mpesa.ratiba import RatibaResult
 
 
 @dataclass
@@ -260,6 +262,50 @@ class MpesaClient:
             is_paid=(result_code == "0"),
             raw=data,
         )
+
+    # ── Ratiba (standing orders) ──────────────────────────────────────────────
+
+    def ratiba_create(
+        self,
+        phone: str,
+        amount: int | float,
+        standing_order_name: str,
+        start_date: str | date,
+        end_date: str | date,
+        account_reference: str,
+        callback_url: str,
+        frequency: str | int = "monthly",
+        receiver_type: str = "paybill",
+        description: str = "Standing order",
+    ) -> RatibaResult:
+        """Create an M-Pesa Ratiba standing order: a recurring debit of ``amount`` from the customer's M-Pesa.
+
+        Safaricom sends the customer a PIN prompt; the order exists only after they approve it on their phone,
+        and the outcome arrives at ``callback_url``. ``RatibaResult.accepted`` therefore means the request was
+        accepted, not that the order is active. ``RatibaResult.schedule`` gives the number of payments and the
+        total commitment (None for ``bi_monthly``, which Safaricom does not define precisely); show it to the
+        customer. Ratiba is a commercial Daraja API: live use needs Safaricom's go-live agreement.
+
+        Args:
+            phone: Customer phone that pays (any Kenyan format).
+            amount: KES debited on EACH payment (1 to 150,000).
+            standing_order_name: Unique per customer (Safaricom rejects a repeat), 1 to 60 characters.
+            start_date / end_date: ``date``, ``YYYY-MM-DD`` or ``YYYYMMDD``; start today or later, end >= start.
+            account_reference: Reference the customer sees, e.g. a loan or member number (max 12 chars).
+            callback_url: https:// URL that receives the outcome.
+            frequency: one_off, daily, weekly, monthly, bi_monthly, quarterly, half_year, yearly, or code 1-8.
+            receiver_type: ``paybill`` (your shortcode as a PayBill) or ``till`` (as a Buy Goods till).
+            description: Safaricom keeps the first 13 characters.
+
+        Raises:
+            ValidationError: before any network call, if any field is invalid.
+        """
+        payload, schedule = ratiba.build(
+            shortcode=self._shortcode, phone=phone, amount=amount, standing_order_name=standing_order_name,
+            start_date=start_date, end_date=end_date, account_reference=account_reference,
+            callback_url=callback_url, frequency_=frequency, receiver_type=receiver_type, description=description,
+        )
+        return ratiba.parse_response(self._post(ratiba.PATH, payload), schedule)
 
     # ── B2C (Business to Customer) ────────────────────────────────────────────
 
